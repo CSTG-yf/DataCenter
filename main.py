@@ -98,7 +98,7 @@ class SerialCommunicationApp:
     
     def run(self):
         """运行应用程序"""
-        self.main_window.show()
+        # 主窗口已经在初始化时设置了最大化状态并显示
         return self.app.exec()
 
 

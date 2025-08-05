@@ -1,7 +1,8 @@
 import sys
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-                             QSplitter, QFrame, QStackedWidget, QToolButton)
+                             QSplitter, QFrame, QStackedWidget, QToolButton, QApplication)
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QKeySequence, QShortcut
 
 # 导入页面模块
 from .config_page import ConfigPage
@@ -32,7 +33,6 @@ class MainWindow(QMainWindow):
     def init_ui(self):
         """初始化UI界面"""
         self.setWindowTitle("串口通信工具")
-        self.setGeometry(100, 100, 1200, 800)
         
         # 创建中央部件
         central_widget = QWidget()
@@ -55,10 +55,31 @@ class MainWindow(QMainWindow):
         main_layout.setStretch(0, 0)  # 左侧菜单不拉伸
         main_layout.setStretch(1, 1)  # 右侧内容区域拉伸
         
+        # 添加快捷键
+        self.setup_shortcuts()
+        
+        # 设置窗口最大化显示（在所有UI组件创建完成后）
+        self.show()
+        # 使用QTimer延迟设置最大化状态，确保窗口完全显示后再最大化
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(100, self.showMaximized)
+    
+    def center_window(self):
+        """将窗口移动到屏幕中央"""
+        # 获取屏幕几何信息
+        screen = QApplication.primaryScreen().geometry()
+        # 获取窗口几何信息
+        window_geometry = self.geometry()
+        # 计算居中位置
+        x = (screen.width() - window_geometry.width()) // 2
+        y = (screen.height() - window_geometry.height()) // 2
+        # 移动窗口到中央位置
+        self.move(x, y)
+        
     def create_left_menu(self):
         """创建左侧菜单栏"""
         menu_frame = QFrame()
-        menu_frame.setFixedWidth(60)
+        menu_frame.setFixedWidth(80)
         menu_frame.setStyleSheet("""
             QFrame {
                 background-color: #f0f0f0;
@@ -67,8 +88,8 @@ class MainWindow(QMainWindow):
         """)
         
         menu_layout = QVBoxLayout(menu_frame)
-        menu_layout.setContentsMargins(5, 10, 5, 10)
-        menu_layout.setSpacing(5)
+        menu_layout.setContentsMargins(8, 15, 8, 15)
+        menu_layout.setSpacing(8)
         
         # 创建菜单按钮
         self.menu_buttons = {}
@@ -98,17 +119,41 @@ class MainWindow(QMainWindow):
         
         return menu_frame
     
+    def setup_shortcuts(self):
+        """设置快捷键"""
+        # ESC键退出全屏
+        exit_fullscreen_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
+        exit_fullscreen_shortcut.activated.connect(self.exit_fullscreen)
+        
+        # F11键切换全屏
+        toggle_fullscreen_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F11), self)
+        toggle_fullscreen_shortcut.activated.connect(self.toggle_fullscreen)
+    
+    def exit_fullscreen(self):
+        """退出全屏模式"""
+        if self.isFullScreen():
+            self.showMaximized()
+        else:
+            self.showNormal()
+    
+    def toggle_fullscreen(self):
+        """切换全屏模式"""
+        if self.isFullScreen():
+            self.showMaximized()
+        else:
+            self.showFullScreen()
+    
     def create_menu_button(self, text, icon_text):
         """创建菜单按钮"""
         button = QToolButton()
         button.setText(f"{icon_text}\n{text}")
-        button.setFixedSize(50, 60)
+        button.setFixedSize(70, 80)
         button.setStyleSheet("""
             QToolButton {
                 border: none;
-                border-radius: 5px;
+                border-radius: 8px;
                 background-color: transparent;
-                font-size: 10px;
+                font-size: 12px;
                 color: #666666;
             }
             QToolButton:hover {
@@ -183,19 +228,19 @@ class MainWindow(QMainWindow):
                     button.setStyleSheet("""
                         QToolButton {
                             border: none;
-                            border-radius: 5px;
+                            border-radius: 8px;
                             background-color: #0078d4;
                             color: white;
-                            font-size: 10px;
+                            font-size: 12px;
                         }
                     """)
                 else:
                     button.setStyleSheet("""
                         QToolButton {
                             border: none;
-                            border-radius: 5px;
+                            border-radius: 8px;
                             background-color: transparent;
-                            font-size: 10px;
+                            font-size: 12px;
                             color: #666666;
                         }
                         QToolButton:hover {

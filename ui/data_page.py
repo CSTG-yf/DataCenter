@@ -19,11 +19,11 @@ class DataPage(QWidget):
     def init_ui(self):
         """初始化UI界面"""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(30, 30, 30, 30)
         
         # 页面标题
         title = QLabel("数据收发")
-        title.setStyleSheet("font-size: 18px; font-weight: bold; margin-bottom: 10px;")
+        title.setStyleSheet("font-size: 24px; font-weight: bold; margin-bottom: 20px;")
         layout.addWidget(title)
         
         # 创建分割器
@@ -39,7 +39,7 @@ class DataPage(QWidget):
         splitter.addWidget(receive_panel)
         
         # 设置分割器比例
-        splitter.setSizes([400, 600])
+        splitter.setSizes([500, 800])
     
     def create_send_panel(self):
         """创建发送控制面板"""
@@ -61,6 +61,22 @@ class DataPage(QWidget):
         self.send_btn = QPushButton("发送")
         self.send_btn.clicked.connect(self.send_data)
         self.send_btn.setEnabled(False)
+        self.send_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                padding: 12px 24px;
+                border-radius: 6px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+            }
+        """)
         send_layout.addWidget(self.send_btn)
         
         # 发送选项
@@ -97,7 +113,7 @@ class DataPage(QWidget):
         
         # 接收数据显示
         self.receive_text = QTextEdit()
-        self.receive_text.setFont(QFont("Consolas", 10))
+        self.receive_text.setFont(QFont("Consolas", 12))
         self.receive_text.setReadOnly(True)
         data_layout.addWidget(self.receive_text)
         
@@ -105,6 +121,19 @@ class DataPage(QWidget):
         receive_control_layout = QHBoxLayout()
         self.clear_receive_btn = QPushButton("清空接收")
         self.clear_receive_btn.clicked.connect(self.clear_receive)
+        self.clear_receive_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 6px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #F57C00;
+            }
+        """)
         receive_control_layout.addWidget(self.clear_receive_btn)
         
         self.hex_display_check = QCheckBox("十六进制显示")

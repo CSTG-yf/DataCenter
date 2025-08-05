@@ -17,11 +17,11 @@ class SettingsPage(QWidget):
     def init_ui(self):
         """初始化UI界面"""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(30, 30, 30, 30)
         
         # 页面标题
         title = QLabel("设置")
-        title.setStyleSheet("font-size: 18px; font-weight: bold; margin-bottom: 10px;")
+        title.setStyleSheet("font-size: 24px; font-weight: bold; margin-bottom: 20px;")
         layout.addWidget(title)
         
         # 应用程序设置组
@@ -88,6 +88,19 @@ class SettingsPage(QWidget):
         # 重置设置按钮
         self.reset_btn = QPushButton("重置设置")
         self.reset_btn.clicked.connect(self.reset_settings_signal.emit)
+        self.reset_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                border: none;
+                padding: 12px 24px;
+                border-radius: 6px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #F57C00;
+            }
+        """)
         control_layout.addWidget(self.reset_btn)
         
         control_layout.addStretch()

@@ -18,11 +18,11 @@ class ConfigPage(QWidget):
     def init_ui(self):
         """初始化UI界面"""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(30, 30, 30, 30)
         
         # 页面标题
         title = QLabel("串口配置")
-        title.setStyleSheet("font-size: 18px; font-weight: bold; margin-bottom: 10px;")
+        title.setStyleSheet("font-size: 24px; font-weight: bold; margin-bottom: 20px;")
         layout.addWidget(title)
         
         # 配置组
@@ -32,7 +32,7 @@ class ConfigPage(QWidget):
         # 串口选择
         config_layout.addWidget(QLabel("串口:"), 0, 0)
         self.port_combo = QComboBox()
-        self.port_combo.setMinimumWidth(200)
+        self.port_combo.setMinimumWidth(300)
         config_layout.addWidget(self.port_combo, 0, 1)
         
         # 刷新串口按钮
@@ -82,9 +82,9 @@ class ConfigPage(QWidget):
                 background-color: #4CAF50;
                 color: white;
                 border: none;
-                padding: 10px 20px;
-                border-radius: 5px;
-                font-size: 14px;
+                padding: 15px 30px;
+                border-radius: 8px;
+                font-size: 16px;
             }
             QPushButton:hover {
                 background-color: #45a049;
@@ -104,9 +104,9 @@ class ConfigPage(QWidget):
                 background-color: #f44336;
                 color: white;
                 border: none;
-                padding: 10px 20px;
-                border-radius: 5px;
-                font-size: 14px;
+                padding: 15px 30px;
+                border-radius: 8px;
+                font-size: 16px;
             }
             QPushButton:hover {
                 background-color: #da190b;

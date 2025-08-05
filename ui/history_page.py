@@ -16,11 +16,11 @@ class HistoryPage(QWidget):
     def init_ui(self):
         """初始化UI界面"""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(30, 30, 30, 30)
         
         # 页面标题
         title = QLabel("历史记录")
-        title.setStyleSheet("font-size: 18px; font-weight: bold; margin-bottom: 10px;")
+        title.setStyleSheet("font-size: 24px; font-weight: bold; margin-bottom: 20px;")
         layout.addWidget(title)
         
         # 历史记录控制组
@@ -30,11 +30,37 @@ class HistoryPage(QWidget):
         # 清空历史记录按钮
         self.clear_history_btn = QPushButton("清空历史记录")
         self.clear_history_btn.clicked.connect(self.clear_history_signal.emit)
+        self.clear_history_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: white;
+                border: none;
+                padding: 12px 24px;
+                border-radius: 6px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #d32f2f;
+            }
+        """)
         control_layout.addWidget(self.clear_history_btn)
         
         # 保存历史记录按钮
         self.save_history_btn = QPushButton("保存历史记录")
         self.save_history_btn.clicked.connect(self.save_history_signal.emit)
+        self.save_history_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 12px 24px;
+                border-radius: 6px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
         control_layout.addWidget(self.save_history_btn)
         
         control_layout.addStretch()
