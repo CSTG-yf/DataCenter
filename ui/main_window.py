@@ -26,9 +26,10 @@ class RightSideMenu(QWidget):
         self.setFixedWidth(450)  # 增加宽度以确保内容完全显示
         self.setStyleSheet("""
             QWidget {
-                background-color: white;
-                border-left: 1px solid #d0d0d0;
-                border-right: 1px solid #d0d0d0;
+                background-color: #ffffff;
+                border-left: 3px solid #495057;
+                border-right: 2px solid #6c757d;
+                border-top: 2px solid #6c757d;
             }
         """)
         
@@ -56,11 +57,13 @@ class RightSideMenu(QWidget):
     def create_title_bar(self, parent_layout):
         """创建标题栏"""
         title_frame = QFrame()
-        title_frame.setFixedHeight(45)  # 稍微减小高度
+        title_frame.setFixedHeight(48)  # 稍微增加高度
         title_frame.setStyleSheet("""
             QFrame {
-                background-color: #f8f9fa;
-                border-bottom: 1px solid #d0d0d0;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ffffff, stop:1 #f8f9fa);
+                border-bottom: 3px solid #495057;
+                border-top: 2px solid #6c757d;
             }
         """)
         
@@ -76,26 +79,100 @@ class RightSideMenu(QWidget):
             }
         """)
         
-        close_button = QPushButton("×")
-        close_button.setFixedSize(28, 28)  # 稍微减小按钮大小
-        close_button.setStyleSheet("""
+        # 按钮区域（仅在config页面显示）
+        self.button_layout = QHBoxLayout()
+        self.button_layout.setSpacing(8)
+        
+        # + 按钮
+        self.add_btn = QPushButton("+")
+        self.add_btn.setFixedSize(32, 32)
+        self.add_btn.setStyleSheet("""
             QPushButton {
-                border: none;
-                background-color: transparent;
-                font-size: 16px;
-                color: #666666;
-                border-radius: 14px;
+                border: 2px solid #6c757d;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ffffff, stop:1 #f8f9fa);
+                font-size: 18px;
+                font-weight: bold;
+                color: #495057;
+                border-radius: 16px;
             }
             QPushButton:hover {
-                background-color: #e0e0e0;
-                color: #333333;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #e3f2fd, stop:1 #bbdefb);
+                border: 2px solid #0d6efd;
+                color: #0d6efd;
+            }
+            QPushButton:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #bbdefb, stop:1 #90caf9);
+                border: 3px solid #0b5ed7;
+                color: #0b5ed7;
             }
         """)
-        close_button.clicked.connect(self.hide_menu)
+        self.add_btn.hide()  # 默认隐藏
+        
+        # 设置按钮
+        self.settings_btn = QPushButton("⚙")
+        self.settings_btn.setFixedSize(32, 32)
+        self.settings_btn.setStyleSheet("""
+            QPushButton {
+                border: 2px solid #6c757d;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ffffff, stop:1 #f8f9fa);
+                font-size: 16px;
+                color: #495057;
+                border-radius: 16px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #fff3cd, stop:1 #ffeaa7);
+                border: 2px solid #ffc107;
+                color: #b8860b;
+            }
+            QPushButton:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ffeaa7, stop:1 #fdcb6e);
+                border: 3px solid #e0a800;
+                color: #b8860b;
+            }
+        """)
+        self.settings_btn.hide()  # 默认隐藏
+        
+        # X 按钮
+        self.close_button = QPushButton("×")
+        self.close_button.setFixedSize(32, 32)
+        self.close_button.setStyleSheet("""
+            QPushButton {
+                border: 2px solid #6c757d;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ffffff, stop:1 #f8f9fa);
+                font-size: 18px;
+                font-weight: bold;
+                color: #495057;
+                border-radius: 16px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #f8d7da, stop:1 #f5c2c7);
+                border: 2px solid #dc3545;
+                color: #dc3545;
+            }
+            QPushButton:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #f5c2c7, stop:1 #ea868f);
+                border: 3px solid #b02a37;
+                color: #b02a37;
+            }
+        """)
+        self.close_button.clicked.connect(self.hide_menu)
+        
+        self.button_layout.addWidget(self.add_btn)
+        self.button_layout.addWidget(self.settings_btn)
+        self.button_layout.addWidget(self.close_button)
         
         title_layout.addWidget(self.title_label)
         title_layout.addStretch()
-        title_layout.addWidget(close_button)
+        title_layout.addLayout(self.button_layout)
         
         parent_layout.addWidget(title_frame)
         
@@ -130,6 +207,23 @@ class RightSideMenu(QWidget):
             self.content_layout.addWidget(self.pages[page_name])
             self.current_page = page_name
             self.title_label.setText(page_title)
+            
+            # 根据页面类型显示/隐藏按钮
+            if page_name == 'config':
+                self.add_btn.show()
+                self.settings_btn.show()
+                # 连接config页面的信号到标题栏按钮
+                self.add_btn.clicked.connect(self.pages[page_name].show_connection_dialog)
+                self.settings_btn.clicked.connect(self.pages[page_name].show_settings)
+            else:
+                self.add_btn.hide()
+                self.settings_btn.hide()
+                # 断开之前的连接
+                try:
+                    self.add_btn.clicked.disconnect()
+                    self.settings_btn.clicked.disconnect()
+                except TypeError:
+                    pass  # 如果没有连接就忽略
             
             # 显示菜单
             self.show()
@@ -241,8 +335,10 @@ class MainWindow(QMainWindow):
         menu_frame.setFixedWidth(80)
         menu_frame.setStyleSheet("""
             QFrame {
-                background-color: #f0f0f0;
-                border-right: 1px solid #d0d0d0;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                    stop:0 #f8f9fa, stop:1 #e9ecef);
+                border-right: 3px solid #495057;
+                border-top: 2px solid #6c757d;
             }
         """)
         
@@ -284,7 +380,10 @@ class MainWindow(QMainWindow):
         self.main_content_widget = QWidget()
         self.main_content_widget.setStyleSheet("""
             QWidget {
-                background-color: white;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, 
+                    stop:0 #ffffff, stop:1 #f8f9fa);
+                border: 2px solid #6c757d;
+                border-left: none;
             }
         """)
         
@@ -312,28 +411,37 @@ class MainWindow(QMainWindow):
             if name == active_page:
                 button.setStyleSheet("""
                     QToolButton {
-                        border: none;
-                        border-radius: 8px;
-                        background-color: #0078d4;
+                        border: 3px solid #0d6efd;
+                        border-radius: 10px;
+                        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                            stop:0 #0d6efd, stop:1 #0b5ed7);
                         color: white;
                         font-size: 12px;
+                        font-weight: 600;
+                        padding: 8px 4px;
                     }
                 """)
             else:
                 button.setStyleSheet("""
                     QToolButton {
-                        border: none;
-                        border-radius: 8px;
+                        border: 2px solid transparent;
+                        border-radius: 10px;
                         background-color: transparent;
                         font-size: 12px;
-                        color: #666666;
+                        color: #495057;
+                        font-weight: 500;
+                        padding: 8px 4px;
                     }
                     QToolButton:hover {
-                        background-color: #e0e0e0;
-                        color: #333333;
+                        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                            stop:0 #ffffff, stop:1 #f8f9fa);
+                        border: 2px solid #6c757d;
+                        color: #212529;
                     }
                     QToolButton:pressed {
-                        background-color: #d0d0d0;
+                        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                            stop:0 #e9ecef, stop:1 #dee2e6);
+                        border: 3px solid #495057;
                     }
                 """)
     
@@ -368,18 +476,24 @@ class MainWindow(QMainWindow):
         button.setFixedSize(70, 80)
         button.setStyleSheet("""
             QToolButton {
-                border: none;
-                border-radius: 8px;
+                border: 2px solid transparent;
+                border-radius: 10px;
                 background-color: transparent;
                 font-size: 12px;
-                color: #666666;
+                color: #495057;
+                font-weight: 500;
+                padding: 8px 4px;
             }
             QToolButton:hover {
-                background-color: #e0e0e0;
-                color: #333333;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #ffffff, stop:1 #f8f9fa);
+                border: 2px solid #6c757d;
+                color: #212529;
             }
             QToolButton:pressed {
-                background-color: #d0d0d0;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #e9ecef, stop:1 #dee2e6);
+                border: 3px solid #495057;
             }
         """)
         return button

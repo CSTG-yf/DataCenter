@@ -5,12 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="81cd67ca-1974-47b9-b83f-759724578b24" name="更改" comment="">
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/serial_handler.py" beforeDir="false" afterPath="$PROJECT_DIR$/core/serial_handler.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ui/config_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/config_page.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ui/data_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/data_page.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ui/history_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/history_page.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ui/main_window.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/main_window.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -20,6 +15,18 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "CSTG-yf"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/CSTG-yf/DataCenter.git",
+    "accountId": "0412d0b1-4d7e-4fc5-99ad-dab73dfe2797"
+  }
+}]]></component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 5
 }</component>
