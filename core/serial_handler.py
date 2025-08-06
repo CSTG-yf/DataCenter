@@ -47,13 +47,20 @@ class SerialHandler(QObject):
             if self.is_connected:
                 self.disconnect_serial()
             
+            # 设置默认参数（如果配置中没有提供）
+            port = config.get('port')
+            baudrate = config.get('baudrate', 115200)
+            bytesize = config.get('bytesize', 8)
+            stopbits = config.get('stopbits', 1)
+            parity = config.get('parity', 'N')
+            
             # 创建串口对象
             self.serial_port = serial.Serial(
-                port=config['port'],
-                baudrate=config['baudrate'],
-                bytesize=config['bytesize'],
-                stopbits=config['stopbits'],
-                parity=config['parity'],
+                port=port,
+                baudrate=baudrate,
+                bytesize=bytesize,
+                stopbits=stopbits,
+                parity=parity,
                 timeout=1
             )
             

@@ -23,7 +23,7 @@ class RightSideMenu(QWidget):
         
     def init_ui(self):
         """初始化UI"""
-        self.setFixedWidth(350)  # 稍微减小宽度
+        self.setFixedWidth(450)  # 增加宽度以确保内容完全显示
         self.setStyleSheet("""
             QWidget {
                 background-color: white;
@@ -112,7 +112,7 @@ class RightSideMenu(QWidget):
         
         self.content_widget = QWidget()
         self.content_layout = QVBoxLayout(self.content_widget)
-        self.content_layout.setContentsMargins(12, 12, 12, 12)  # 减小边距
+        self.content_layout.setContentsMargins(15, 15, 15, 15)  # 增加边距以确保内容不被截断
         
         self.content_area.setWidget(self.content_widget)
         parent_layout.addWidget(self.content_area)
@@ -253,9 +253,9 @@ class MainWindow(QMainWindow):
         # 创建菜单按钮
         self.menu_buttons = {}
         
-        # 串口配置菜单
-        self.menu_buttons['config'] = self.create_menu_button("配置", "⚙️")
-        self.menu_buttons['config'].clicked.connect(lambda: self.toggle_right_menu('config', '串口配置'))
+        # 数据源菜单
+        self.menu_buttons['config'] = self.create_menu_button("数据源", "🔌")
+        self.menu_buttons['config'].clicked.connect(lambda: self.toggle_right_menu('config', 'Data sources'))
         menu_layout.addWidget(self.menu_buttons['config'])
         
         # 数据收发菜单

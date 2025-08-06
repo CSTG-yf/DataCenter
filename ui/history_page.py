@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton, QGroupBox
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal, Qt
 
 
 class HistoryPage(QWidget):
@@ -23,81 +23,62 @@ class HistoryPage(QWidget):
         title.setStyleSheet("font-size: 24px; font-weight: bold; margin-bottom: 20px;")
         layout.addWidget(title)
         
-        # 历史记录控制组
-        control_group = QGroupBox("历史记录控制")
-        control_layout = QHBoxLayout(control_group)
+        # 显示简化内容
+        content_label = QLabel("后续功能，可继续模块化开发")
+        content_label.setStyleSheet("""
+            QLabel {
+                font-size: 16px;
+                color: #666666;
+                padding: 40px;
+                background-color: #f8f9fa;
+                border: 1px solid #e0e0e0;
+                border-radius: 8px;
+                text-align: center;
+            }
+        """)
+        content_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(content_label)
         
-        # 清空历史记录按钮
+        # 添加弹性空间
+        layout.addStretch()
+        
+        # 创建简化的控件（保持信号连接）
+        self.create_placeholder_controls()
+    
+    def create_placeholder_controls(self):
+        """创建占位控件以保持信号连接"""
+        # 历史记录控制按钮（隐藏）
         self.clear_history_btn = QPushButton("清空历史记录")
-        self.clear_history_btn.clicked.connect(self.clear_history_signal.emit)
-        self.clear_history_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f44336;
-                color: white;
-                border: none;
-                padding: 12px 24px;
-                border-radius: 6px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #d32f2f;
-            }
-        """)
-        control_layout.addWidget(self.clear_history_btn)
-        
-        # 保存历史记录按钮
+        self.clear_history_btn.hide()
         self.save_history_btn = QPushButton("保存历史记录")
-        self.save_history_btn.clicked.connect(self.save_history_signal.emit)
-        self.save_history_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                padding: 12px 24px;
-                border-radius: 6px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-        """)
-        control_layout.addWidget(self.save_history_btn)
+        self.save_history_btn.hide()
         
-        control_layout.addStretch()
-        layout.addWidget(control_group)
-        
-        # 历史记录文本区域
+        # 历史记录文本区域（隐藏）
         self.history_text = QTextEdit()
-        self.history_text.setReadOnly(True)
-        self.history_text.setPlaceholderText("历史记录将在这里显示...")
-        layout.addWidget(self.history_text)
+        self.history_text.hide()
         
-        # 统计信息
-        stats_layout = QHBoxLayout()
+        # 统计信息标签（隐藏）
         self.history_count_label = QLabel("记录条数: 0")
+        self.history_count_label.hide()
         self.history_size_label = QLabel("文件大小: 0 KB")
-        stats_layout.addWidget(self.history_count_label)
-        stats_layout.addWidget(self.history_size_label)
-        stats_layout.addStretch()
-        layout.addLayout(stats_layout)
+        self.history_size_label.hide()
     
     def append_history(self, text):
-        """添加历史记录"""
-        self.history_text.append(text)
+        """添加历史记录（占位方法）"""
+        pass
     
     def clear_history(self):
-        """清空历史记录"""
-        self.history_text.clear()
+        """清空历史记录（占位方法）"""
+        pass
     
     def set_history_content(self, content):
-        """设置历史记录内容"""
-        self.history_text.setPlainText(content)
+        """设置历史记录内容（占位方法）"""
+        pass
     
     def get_history_content(self):
-        """获取历史记录内容"""
-        return self.history_text.toPlainText()
+        """获取历史记录内容（占位方法）"""
+        return ""
     
     def update_statistics(self, count, size_kb):
-        """更新统计信息"""
-        self.history_count_label.setText(f"记录条数: {count}")
-        self.history_size_label.setText(f"文件大小: {size_kb} KB") 
+        """更新统计信息（占位方法）"""
+        pass 
