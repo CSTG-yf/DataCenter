@@ -23,11 +23,12 @@ class RightSideMenu(QWidget):
         
     def init_ui(self):
         """初始化UI"""
-        self.setFixedWidth(400)
+        self.setFixedWidth(350)  # 稍微减小宽度
         self.setStyleSheet("""
             QWidget {
                 background-color: white;
                 border-left: 1px solid #d0d0d0;
+                border-right: 1px solid #d0d0d0;
             }
         """)
         
@@ -55,7 +56,7 @@ class RightSideMenu(QWidget):
     def create_title_bar(self, parent_layout):
         """创建标题栏"""
         title_frame = QFrame()
-        title_frame.setFixedHeight(50)
+        title_frame.setFixedHeight(45)  # 稍微减小高度
         title_frame.setStyleSheet("""
             QFrame {
                 background-color: #f8f9fa;
@@ -64,26 +65,26 @@ class RightSideMenu(QWidget):
         """)
         
         title_layout = QHBoxLayout(title_frame)
-        title_layout.setContentsMargins(15, 0, 15, 0)
+        title_layout.setContentsMargins(12, 0, 12, 0)  # 减小边距
         
         self.title_label = QLabel("菜单")
         self.title_label.setStyleSheet("""
             QLabel {
-                font-size: 16px;
+                font-size: 14px;
                 font-weight: bold;
                 color: #333333;
             }
         """)
         
         close_button = QPushButton("×")
-        close_button.setFixedSize(30, 30)
+        close_button.setFixedSize(28, 28)  # 稍微减小按钮大小
         close_button.setStyleSheet("""
             QPushButton {
                 border: none;
                 background-color: transparent;
-                font-size: 18px;
+                font-size: 16px;
                 color: #666666;
-                border-radius: 15px;
+                border-radius: 14px;
             }
             QPushButton:hover {
                 background-color: #e0e0e0;
@@ -111,7 +112,7 @@ class RightSideMenu(QWidget):
         
         self.content_widget = QWidget()
         self.content_layout = QVBoxLayout(self.content_widget)
-        self.content_layout.setContentsMargins(15, 15, 15, 15)
+        self.content_layout.setContentsMargins(12, 12, 12, 12)  # 减小边距
         
         self.content_area.setWidget(self.content_widget)
         parent_layout.addWidget(self.content_area)
@@ -180,22 +181,17 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
         
-        # 创建左侧菜单栏
-        left_menu = self.create_left_menu()
-        main_layout.addWidget(left_menu)
+        # 创建左侧区域（包含菜单栏和右侧菜单）
+        left_area = self.create_left_area()
+        main_layout.addWidget(left_area)
         
         # 创建主内容区域（始终显示数据页面）
         self.main_content = self.create_main_content()
         main_layout.addWidget(self.main_content)
         
-        # 创建右侧弹出菜单
-        self.right_menu = RightSideMenu(self)
-        main_layout.addWidget(self.right_menu)
-        
         # 设置布局比例
-        main_layout.setStretch(0, 0)  # 左侧菜单不拉伸
+        main_layout.setStretch(0, 0)  # 左侧区域不拉伸
         main_layout.setStretch(1, 1)  # 主内容区域拉伸
-        main_layout.setStretch(2, 0)  # 右侧菜单不拉伸
         
         # 添加快捷键
         self.setup_shortcuts()
@@ -218,6 +214,27 @@ class MainWindow(QMainWindow):
         # 移动窗口到中央位置
         self.move(x, y)
         
+    def create_left_area(self):
+        """创建左侧区域（包含菜单栏和右侧菜单）"""
+        left_widget = QWidget()
+        left_layout = QHBoxLayout(left_widget)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(0)
+        
+        # 创建左侧菜单栏
+        left_menu = self.create_left_menu()
+        left_layout.addWidget(left_menu)
+        
+        # 创建右侧弹出菜单
+        self.right_menu = RightSideMenu(self)
+        left_layout.addWidget(self.right_menu)
+        
+        # 设置布局比例
+        left_layout.setStretch(0, 0)  # 左侧菜单不拉伸
+        left_layout.setStretch(1, 0)  # 右侧菜单不拉伸
+        
+        return left_widget
+    
     def create_left_menu(self):
         """创建左侧菜单栏"""
         menu_frame = QFrame()
@@ -262,15 +279,19 @@ class MainWindow(QMainWindow):
         return menu_frame
     
     def create_main_content(self):
-        """创建主内容区域（始终显示数据页面）"""
-        # 创建数据页面作为主内容
-        self.main_data_page = DataPage()
-        self.main_data_page.setStyleSheet("""
+        """创建主内容区域（显示空白背景）"""
+        # 创建空白的主内容区域
+        self.main_content_widget = QWidget()
+        self.main_content_widget.setStyleSheet("""
             QWidget {
                 background-color: white;
             }
         """)
-        return self.main_data_page
+        
+        # 创建主数据页面（用于功能，但不显示在主界面）
+        self.main_data_page = DataPage()
+        
+        return self.main_content_widget
     
     def toggle_right_menu(self, page_name, page_title):
         """切换右侧菜单显示"""
@@ -365,7 +386,7 @@ class MainWindow(QMainWindow):
     
     def connect_signals(self):
         """连接页面信号"""
-        # 主数据页面信号
+        # 主数据页面信号（虽然不显示在主界面，但仍需要处理信号）
         self.main_data_page.send_data_signal.connect(self.send_data_signal.emit)
         self.main_data_page.clear_signal.connect(self.clear_signal.emit)
         
