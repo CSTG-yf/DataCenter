@@ -93,7 +93,7 @@ class SerialConnectionDialog(QDialog):
         baud_layout.addWidget(baud_label)
         
         self.baud_combo = QComboBox()
-        self.baud_combo.addItems(['9600', '19200', '38400', '57600', '115200'])
+        self.baud_combo.addItems(['9600', '19200', '38400', '57600', '115200', '230400', '460800', '921600'])
         self.baud_combo.setCurrentText('115200')
         self.baud_combo.setStyleSheet("""
             QComboBox {
@@ -366,9 +366,10 @@ class ConfigPage(QWidget):
             # 创建新的接收信息窗口
             window = ReceivedDataWindow(port_name, self)
             self.received_windows[port_name] = window
-        else:
-            window = self.received_windows[port_name]
         
+        window = self.received_windows[port_name]
+        
+        # 显示窗口（会自动显示缓冲区中的数据）
         window.show()
         window.raise_()
         window.activateWindow()
@@ -402,12 +403,14 @@ class ConfigPage(QWidget):
     def append_received_data(self, port_name, data):
         """添加接收数据到指定串口"""
         if port_name in self.received_windows:
+            # 如果窗口已打开，直接显示数据
             self.received_windows[port_name].append_data(data)
         else:
-            # 如果窗口不存在，创建新窗口
-            self.view_received_data(port_name)
-            if port_name in self.received_windows:
-                self.received_windows[port_name].append_data(data)
+            # 如果窗口未打开，创建窗口但不显示，只存储数据
+            window = ReceivedDataWindow(port_name, self)
+            window.add_to_buffer(data)  # 添加到缓冲区
+            self.received_windows[port_name] = window
+            # 不调用show()，窗口保持隐藏状态
     
     def remove_serial_widget(self, port_name):
         """移除串口组件"""
