@@ -19,7 +19,7 @@ class SerialConnectionDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("连接新串口")
-        self.setFixedSize(400, 300)
+        self.setFixedSize(600, 300)
         self.setModal(True)
         self.init_ui()
         self.refresh_ports()
@@ -125,9 +125,13 @@ class SerialConnectionDialog(QDialog):
         baud_layout.addStretch()
         layout.addLayout(baud_layout)
         
-        # 刷新按钮（放在最底下）
-        refresh_layout = QHBoxLayout()
-        refresh_layout.addStretch()
+        # 添加弹性空间
+        layout.addStretch()
+        
+        # 底部按钮区域 - 使用水平布局包含刷新按钮和操作按钮
+        bottom_layout = QHBoxLayout()
+        
+        # 刷新按钮（放在左下角）
         self.refresh_btn = QPushButton("刷新")
         self.refresh_btn.clicked.connect(self.refresh_ports)
         self.refresh_btn.setStyleSheet("""
@@ -147,17 +151,12 @@ class SerialConnectionDialog(QDialog):
                 background-color: #1565C0;
             }
         """)
-        refresh_layout.addWidget(self.refresh_btn)
-        refresh_layout.addStretch()
-        layout.addLayout(refresh_layout)
+        bottom_layout.addWidget(self.refresh_btn)
         
-        # 添加弹性空间
-        layout.addStretch()
+        # 添加弹性空间，将操作按钮推到右边
+        bottom_layout.addStretch()
         
-        # 按钮区域
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-        
+        # 操作按钮（放在右下角）
         self.cancel_btn = QPushButton("取消")
         self.cancel_btn.clicked.connect(self.reject)
         self.cancel_btn.setStyleSheet("""
@@ -182,7 +181,7 @@ class SerialConnectionDialog(QDialog):
                 border: 3px solid #343a40;
             }
         """)
-        button_layout.addWidget(self.cancel_btn)
+        bottom_layout.addWidget(self.cancel_btn)
         
         self.connect_btn = QPushButton("连接")
         self.connect_btn.clicked.connect(self.connect_serial)
@@ -208,22 +207,45 @@ class SerialConnectionDialog(QDialog):
                 border: 3px solid #0a3622;
             }
         """)
-        button_layout.addWidget(self.connect_btn)
+        bottom_layout.addWidget(self.connect_btn)
         
-        layout.addLayout(button_layout)
+        layout.addLayout(bottom_layout)
     
     def refresh_ports(self):
         """刷新串口列表"""
         self.port_combo.clear()
-        ports = [port.device for port in serial.tools.list_ports.comports()]
-        self.port_combo.addItems(ports)
+        port_list = []
+        
+        for port in serial.tools.list_ports.comports():
+            # 构建完整的设备描述
+            device_name = port.device
+            description = port.description if port.description else ""
+            manufacturer = port.manufacturer if port.manufacturer else ""
+            hwid = port.hwid if port.hwid else ""
+            
+            # 组合完整信息
+            if description and manufacturer:
+                full_name = f"{device_name} - {description} ({manufacturer})"
+            elif description:
+                full_name = f"{device_name} - {description}"
+            elif manufacturer:
+                full_name = f"{device_name} - {manufacturer}"
+            else:
+                full_name = f"{device_name} - {hwid}" if hwid else device_name
+            
+            port_list.append(full_name)
+        
+        self.port_combo.addItems(port_list)
     
     def connect_serial(self):
         """连接串口"""
-        port = self.port_combo.currentText()
-        if not port:
+        full_port_name = self.port_combo.currentText()
+        if not full_port_name:
             QMessageBox.warning(self, "警告", "请选择串口")
             return
+        
+        # 从完整设备名中提取设备名称（取第一个空格前的部分）
+        port = full_port_name.split(' - ')[0] if ' - ' in full_port_name else full_port_name
             
         config = {
             'port': port,
