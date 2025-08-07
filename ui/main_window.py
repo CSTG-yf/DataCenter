@@ -31,6 +31,11 @@ class RightSideMenu(QWidget):
                 border-right: 2px solid #6c757d;
                 border-top: 2px solid #6c757d;
             }
+            QLineEdit, QTextEdit {
+                border: none;
+                background-color: transparent;
+                padding: 8px 12px;
+            }
         """)
         
         # 创建主布局
@@ -256,6 +261,9 @@ class MainWindow(QMainWindow):
     save_history_signal = pyqtSignal()  # 保存历史记录信号
     settings_changed_signal = pyqtSignal(dict) # 设置变更信号
     reset_settings_signal = pyqtSignal() # 重置设置信号
+    view_received_signal = pyqtSignal(str)  # 查看接收信息信号
+    send_data_to_port_signal = pyqtSignal(str, str, bool, bool, int)  # 向指定串口发送数据信号
+    delete_serial_signal = pyqtSignal(str)  # 删除串口信号
     
     def __init__(self):
         super().__init__()
@@ -511,6 +519,9 @@ class MainWindow(QMainWindow):
         right_pages['config'].connect_signal.connect(self.connect_signal.emit)
         right_pages['config'].disconnect_signal.connect(self.disconnect_signal.emit)
         right_pages['config'].refresh_ports_signal.connect(self.refresh_ports_signal.emit)
+        right_pages['config'].view_received_signal.connect(self.view_received_signal.emit)
+        right_pages['config'].send_data_signal.connect(self.send_data_to_port_signal.emit)
+        right_pages['config'].delete_serial_signal.connect(self.delete_serial_signal.emit)
         
         # 数据页面信号（右侧菜单中的）
         right_pages['data'].send_data_signal.connect(self.send_data_signal.emit)
@@ -526,11 +537,10 @@ class MainWindow(QMainWindow):
     
     # 公共接口方法，用于外部调用
     def update_connection_status(self, connected):
-        """更新连接状态"""
+        """更新连接状态（兼容旧接口）"""
         self.main_data_page.update_connection_status(connected)
         # 同时更新右侧菜单中的页面
         right_pages = self.right_menu.pages
-        right_pages['config'].update_connection_status(connected)
         right_pages['data'].update_connection_status(connected)
     
     def update_port_list(self, ports):

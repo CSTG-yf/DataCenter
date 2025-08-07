@@ -30,12 +30,11 @@ class DataPage(QWidget):
         content_label = QLabel("后续功能，可继续模块化开发")
         content_label.setStyleSheet("""
             QLabel {
-                font-size: 16px;
-                color: #666666;
-                padding: 40px;
-                background-color: #f8f9fa;
-                border: 1px solid #e0e0e0;
-                border-radius: 8px;
+                font-size: 18px;
+                color: #333333;
+                padding: 50px 0;
+                background-color: transparent;
+                border: none;
                 text-align: center;
             }
         """)

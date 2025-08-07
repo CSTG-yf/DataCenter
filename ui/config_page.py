@@ -1,9 +1,14 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, 
                              QGroupBox, QLabel, QComboBox, QPushButton, QFrame,
-                             QCheckBox, QLineEdit, QDialog, QMessageBox)
+                             QCheckBox, QLineEdit, QDialog, QMessageBox, QScrollArea)
 from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtGui import QFont
 import serial.tools.list_ports
+
+# 导入新创建的组件
+from .serial_info_widget import SerialInfoWidget
+from .received_data_window import ReceivedDataWindow
+from .send_data_window import SendDataWindow
 
 
 class SerialConnectionDialog(QDialog):
@@ -25,33 +30,38 @@ class SerialConnectionDialog(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
         
-        # 标题
-        title = QLabel("连接新串口")
-        title.setStyleSheet("""
-            QLabel {
-                font-size: 18px;
-                font-weight: bold;
-                color: #333333;
-                padding: 10px 0;
-            }
-        """)
-        layout.addWidget(title)
+        # 移除重复的标题，因为窗口标题栏已经显示了
+        # 直接开始串口配置部分
         
         # 串口选择
         port_layout = QHBoxLayout()
         port_label = QLabel("串口:")
-        port_label.setStyleSheet("font-size: 14px; color: #333333; min-width: 60px;")
+        port_label.setStyleSheet("""
+            QLabel {
+                font-size: 14px;
+                color: #333333;
+                min-width: 60px;
+                background-color: transparent;
+                border: none;
+            }
+        """)
         port_layout.addWidget(port_label)
         
         self.port_combo = QComboBox()
         self.port_combo.setStyleSheet("""
             QComboBox {
                 border: 1px solid #d0d0d0;
-                border-radius: 4px;
-                padding: 8px 12px;
+                border-radius: 6px;
+                padding: 10px 12px;
                 background-color: white;
                 font-size: 14px;
                 min-width: 200px;
+            }
+            QComboBox:hover {
+                border: 2px solid #2196F3;
+            }
+            QComboBox:focus {
+                border: 2px solid #1976D2;
             }
             QComboBox::drop-down {
                 border: none;
@@ -65,30 +75,21 @@ class SerialConnectionDialog(QDialog):
             }
         """)
         port_layout.addWidget(self.port_combo)
-        
-        self.refresh_btn = QPushButton("刷新")
-        self.refresh_btn.clicked.connect(self.refresh_ports)
-        self.refresh_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-        """)
-        port_layout.addWidget(self.refresh_btn)
         port_layout.addStretch()
         layout.addLayout(port_layout)
         
         # 波特率选择
         baud_layout = QHBoxLayout()
         baud_label = QLabel("波特率:")
-        baud_label.setStyleSheet("font-size: 14px; color: #333333; min-width: 60px;")
+        baud_label.setStyleSheet("""
+            QLabel {
+                font-size: 14px;
+                color: #333333;
+                min-width: 60px;
+                background-color: transparent;
+                border: none;
+            }
+        """)
         baud_layout.addWidget(baud_label)
         
         self.baud_combo = QComboBox()
@@ -97,11 +98,17 @@ class SerialConnectionDialog(QDialog):
         self.baud_combo.setStyleSheet("""
             QComboBox {
                 border: 1px solid #d0d0d0;
-                border-radius: 4px;
-                padding: 8px 12px;
+                border-radius: 6px;
+                padding: 10px 12px;
                 background-color: white;
                 font-size: 14px;
                 min-width: 200px;
+            }
+            QComboBox:hover {
+                border: 2px solid #2196F3;
+            }
+            QComboBox:focus {
+                border: 2px solid #1976D2;
             }
             QComboBox::drop-down {
                 border: none;
@@ -117,6 +124,32 @@ class SerialConnectionDialog(QDialog):
         baud_layout.addWidget(self.baud_combo)
         baud_layout.addStretch()
         layout.addLayout(baud_layout)
+        
+        # 刷新按钮（放在最底下）
+        refresh_layout = QHBoxLayout()
+        refresh_layout.addStretch()
+        self.refresh_btn = QPushButton("刷新")
+        self.refresh_btn.clicked.connect(self.refresh_ports)
+        self.refresh_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 6px;
+                font-size: 13px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+            QPushButton:pressed {
+                background-color: #1565C0;
+            }
+        """)
+        refresh_layout.addWidget(self.refresh_btn)
+        refresh_layout.addStretch()
+        layout.addLayout(refresh_layout)
         
         # 添加弹性空间
         layout.addStretch()
@@ -207,9 +240,15 @@ class ConfigPage(QWidget):
     connect_signal = pyqtSignal(dict)  # 连接信号
     disconnect_signal = pyqtSignal()   # 断开连接信号
     refresh_ports_signal = pyqtSignal()  # 刷新串口信号
+    view_received_signal = pyqtSignal(str)  # 查看接收信息信号
+    send_data_signal = pyqtSignal(str, str, bool, bool, int)  # 发送数据信号
+    delete_serial_signal = pyqtSignal(str)  # 删除串口信号
     
     def __init__(self):
         super().__init__()
+        self.serial_widgets = {}  # 存储串口信息组件
+        self.received_windows = {}  # 存储接收信息窗口
+        self.send_windows = {}  # 存储发送数据窗口
         self.init_ui()
         
     def init_ui(self):
@@ -218,30 +257,66 @@ class ConfigPage(QWidget):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(10)
         
-        # 直接创建内容区域（移除独立的标题栏）
-        self.create_content_area(layout)
+        # 创建滚动区域
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background-color: transparent;
+            }
+            QScrollBar:vertical {
+                background-color: #f0f0f0;
+                width: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #c0c0c0;
+                border-radius: 6px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #a0a0a0;
+            }
+        """)
         
-
+        # 创建滚动区域的内容部件
+        self.scroll_content = QWidget()
+        self.scroll_layout = QVBoxLayout(self.scroll_content)
+        self.scroll_layout.setContentsMargins(0, 0, 0, 0)
+        self.scroll_layout.setSpacing(10)
+        
+        # 直接创建内容区域（移除独立的标题栏）
+        self.create_content_area(self.scroll_layout)
+        
+        self.scroll_area.setWidget(self.scroll_content)
+        layout.addWidget(self.scroll_area)
         
     def create_content_area(self, parent_layout):
         """创建内容区域 - 优化后的设计"""
         # 提示文本
-        self.hint_label = QLabel("You haven't added any data sources yet.")
+        self.hint_label = QLabel("您还没有添加任何数据源。")
         self.hint_label.setStyleSheet("""
             QLabel {
-                font-size: 14px;
-                color: #666666;
+                font-size: 16px;
+                color: #333333;
                 text-align: center;
+                background-color: transparent;
+                border: none;
+                padding: 20px 0;
             }
         """)
         self.hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        self.action_label = QLabel("To add a data source click <b>+</b> in the title bar above.")
+        self.action_label = QLabel("点击标题栏上方的 <b>+</b> 按钮添加数据源。")
         self.action_label.setStyleSheet("""
             QLabel {
                 font-size: 14px;
                 color: #666666;
                 text-align: center;
+                background-color: transparent;
+                border: none;
+                padding: 15px 0;
             }
         """)
         self.action_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -258,11 +333,104 @@ class ConfigPage(QWidget):
     
     def handle_connection_request(self, config):
         """处理连接请求"""
+        port_name = config['port']
+        
+        # 检查是否已经存在该串口
+        if port_name in self.serial_widgets:
+            QMessageBox.warning(self, "警告", f"串口 {port_name} 已经存在！")
+            return
+        
+        # 创建串口信息组件
+        serial_widget = SerialInfoWidget(port_name)
+        serial_widget.view_received_signal.connect(self.view_received_data)
+        serial_widget.send_data_signal.connect(self.open_send_dialog)
+        serial_widget.delete_serial_signal.connect(self.handle_delete_serial)
+        
+        # 添加到布局中
+        self.scroll_layout.insertWidget(len(self.serial_widgets), serial_widget)
+        self.serial_widgets[port_name] = serial_widget
+        
+        # 隐藏提示文本
+        self.hint_label.hide()
+        self.action_label.hide()
+        
+        # 发送连接信号
         self.connect_signal.emit(config)
+        
         # 更新界面显示
-        self.update_connection_status(True)
-        self.hint_label.setText(f"Connected to {config['port']} at {config['baudrate']} baud")
-        self.action_label.setText("Click ⚙ to configure or × to disconnect")
+        self.update_connection_status(True, port_name)
+    
+    def view_received_data(self, port_name):
+        """查看接收信息"""
+        if port_name not in self.received_windows:
+            # 创建新的接收信息窗口
+            window = ReceivedDataWindow(port_name, self)
+            self.received_windows[port_name] = window
+        else:
+            window = self.received_windows[port_name]
+        
+        window.show()
+        window.raise_()
+        window.activateWindow()
+    
+    def open_send_dialog(self, port_name):
+        """打开发送数据对话框"""
+        if port_name not in self.send_windows:
+            # 创建新的发送数据窗口
+            window = SendDataWindow(port_name, self)
+            window.send_data_signal.connect(self.handle_send_data)
+            self.send_windows[port_name] = window
+        else:
+            window = self.send_windows[port_name]
+        
+        window.show()
+        window.raise_()
+        window.activateWindow()
+    
+    def handle_send_data(self, port_name, data, hex_mode, auto_mode, interval):
+        """处理发送数据"""
+        self.send_data_signal.emit(port_name, data, hex_mode, auto_mode, interval)
+    
+    def handle_delete_serial(self, port_name):
+        """处理删除串口"""
+        # 发送删除串口信号
+        self.delete_serial_signal.emit(port_name)
+        
+        # 移除串口组件
+        self.remove_serial_widget(port_name)
+    
+    def append_received_data(self, port_name, data):
+        """添加接收数据到指定串口"""
+        if port_name in self.received_windows:
+            self.received_windows[port_name].append_data(data)
+        else:
+            # 如果窗口不存在，创建新窗口
+            self.view_received_data(port_name)
+            if port_name in self.received_windows:
+                self.received_windows[port_name].append_data(data)
+    
+    def remove_serial_widget(self, port_name):
+        """移除串口组件"""
+        if port_name in self.serial_widgets:
+            # 移除组件
+            widget = self.serial_widgets[port_name]
+            self.scroll_layout.removeWidget(widget)
+            widget.deleteLater()
+            del self.serial_widgets[port_name]
+            
+            # 关闭相关窗口
+            if port_name in self.received_windows:
+                self.received_windows[port_name].close()
+                del self.received_windows[port_name]
+            
+            if port_name in self.send_windows:
+                self.send_windows[port_name].close()
+                del self.send_windows[port_name]
+            
+            # 如果没有串口了，显示提示文本
+            if not self.serial_widgets:
+                self.hint_label.show()
+                self.action_label.show()
     
     def show_settings(self):
         """显示设置"""
@@ -272,14 +440,10 @@ class ConfigPage(QWidget):
         """关闭面板 - 此方法不再需要，功能已移到主窗口"""
         pass
     
-    def update_connection_status(self, connected):
+    def update_connection_status(self, connected, port_name=None):
         """更新连接状态"""
-        if connected:
-            self.hint_label.setText("Data source connected successfully!")
-            self.action_label.setText("Click ⚙ to configure or × to disconnect")
-        else:
-            self.hint_label.setText("You haven't added any data sources yet.")
-            self.action_label.setText("To add a data source click <b>+</b> in the title bar above.")
+        if port_name and port_name in self.serial_widgets:
+            self.serial_widgets[port_name].update_status(connected)
     
     def update_port_list(self, ports):
         """更新串口列表 - 保留接口兼容性"""

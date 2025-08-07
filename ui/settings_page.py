@@ -46,6 +46,25 @@ class SettingsPage(QWidget):
         self.auto_save_interval = QSpinBox()
         self.auto_save_interval.setRange(1, 60)
         self.auto_save_interval.setValue(5)
+        self.auto_save_interval.setStyleSheet("""
+            QSpinBox {
+                border: 1px solid #d0d0d0;
+                border-radius: 6px;
+                padding: 10px 12px;
+                background-color: white;
+                font-size: 14px;
+            }
+            QSpinBox:hover {
+                border: 2px solid #2196F3;
+            }
+            QSpinBox:focus {
+                border: 2px solid #1976D2;
+            }
+            QSpinBox::up-button, QSpinBox::down-button {
+                border: none;
+                background-color: transparent;
+            }
+        """)
         self.auto_save_interval.valueChanged.connect(self.on_setting_changed)
         auto_save_layout.addWidget(self.auto_save_interval)
         auto_save_layout.addStretch()
@@ -63,6 +82,31 @@ class SettingsPage(QWidget):
         self.font_size_combo = QComboBox()
         self.font_size_combo.addItems(['8', '9', '10', '11', '12', '14', '16'])
         self.font_size_combo.setCurrentText('10')
+        self.font_size_combo.setStyleSheet("""
+            QComboBox {
+                border: 1px solid #d0d0d0;
+                border-radius: 6px;
+                padding: 10px 12px;
+                background-color: white;
+                font-size: 14px;
+            }
+            QComboBox:hover {
+                border: 2px solid #2196F3;
+            }
+            QComboBox:focus {
+                border: 2px solid #1976D2;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #666666;
+            }
+        """)
         self.font_size_combo.currentTextChanged.connect(self.on_setting_changed)
         font_size_layout.addWidget(self.font_size_combo)
         font_size_layout.addStretch()

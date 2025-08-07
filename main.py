@@ -15,7 +15,7 @@ from PyQt6.QtCore import QTimer
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from ui.main_window import MainWindow
-from core.serial_handler import SerialHandler
+from core.multi_serial_manager import MultiSerialManager
 
 
 class SerialCommunicationApp:
@@ -29,8 +29,8 @@ class SerialCommunicationApp:
         # 创建主窗口
         self.main_window = MainWindow()
         
-        # 创建串口处理器
-        self.serial_handler = SerialHandler()
+        # 创建多串口管理器
+        self.serial_manager = MultiSerialManager()
         
         # 连接信号和槽
         self.connect_signals()
@@ -45,56 +45,112 @@ class SerialCommunicationApp:
         
     def connect_signals(self):
         """连接信号和槽"""
-        # UI信号连接到串口处理器
-        self.main_window.connect_signal.connect(self.serial_handler.connect_serial)
-        self.main_window.disconnect_signal.connect(self.serial_handler.disconnect_serial)
+        # UI信号连接到多串口管理器
+        self.main_window.connect_signal.connect(self.serial_manager.connect_serial)
+        self.main_window.disconnect_signal.connect(self.handle_disconnect)
         self.main_window.send_data_signal.connect(self.handle_send_data)
-        self.main_window.clear_signal.connect(self.serial_handler.clear_statistics)
+        self.main_window.clear_signal.connect(self.serial_manager.clear_statistics)
         self.main_window.refresh_ports_signal.connect(self.refresh_ports)
+        self.main_window.view_received_signal.connect(self.handle_view_received)
+        self.main_window.send_data_to_port_signal.connect(self.handle_send_data_to_port)
+        self.main_window.delete_serial_signal.connect(self.handle_delete_serial)
         
-        # 串口处理器信号连接到UI
-        self.serial_handler.connection_changed.connect(self.main_window.update_connection_status)
-        self.serial_handler.data_received.connect(self.handle_received_data)
-        self.serial_handler.error_occurred.connect(self.show_error)
-        self.serial_handler.port_list_updated.connect(self.main_window.update_port_list)
-        self.serial_handler.statistics_updated.connect(self.main_window.update_statistics)
+        # 多串口管理器信号连接到UI
+        self.serial_manager.connection_changed.connect(self.handle_connection_changed)
+        self.serial_manager.data_received.connect(self.handle_received_data)
+        self.serial_manager.error_occurred.connect(self.show_error)
+        self.serial_manager.port_list_updated.connect(self.main_window.update_port_list)
+        self.serial_manager.statistics_updated.connect(self.handle_statistics_updated)
         
     def handle_send_data(self, data):
-        """处理发送数据"""
+        """处理发送数据（兼容旧接口）"""
         if not data:
             return
-            
-        # 检查是否启用十六进制发送
-        hex_mode = self.main_window.is_hex_send()
         
-        # 检查是否启用自动发送
-        if self.main_window.is_auto_send():
-            interval = self.main_window.get_auto_send_interval()
-            self.serial_handler.start_auto_send(data, interval, hex_mode)
+        # 获取当前连接的串口
+        connected_ports = self.serial_manager.get_all_connected_ports()
+        if not connected_ports:
+            QMessageBox.warning(self.main_window, "警告", "没有连接的串口")
+            return
+        
+        # 向第一个连接的串口发送数据
+        port_name = connected_ports[0]
+        self.handle_send_data_to_port(port_name, data, False, False, 1000)
+    
+    def handle_send_data_to_port(self, port_name, data, hex_mode, auto_mode, interval):
+        """处理向指定串口发送数据"""
+        if not data:
+            return
+        
+        if auto_mode:
+            # 开始自动发送
+            success = self.serial_manager.start_auto_send(port_name, data, interval, hex_mode)
+            if success:
+                # 更新发送窗口的自动发送状态
+                config_page = self.main_window.right_menu.pages['config']
+                if port_name in config_page.send_windows:
+                    config_page.send_windows[port_name].update_auto_send_status(True)
         else:
             # 停止自动发送
-            self.serial_handler.stop_auto_send()
+            self.serial_manager.stop_auto_send(port_name)
             # 发送单次数据
-            self.serial_handler.send_data(data, hex_mode)
+            success = self.serial_manager.send_data(port_name, data, hex_mode)
+            
+            # 更新发送窗口的自动发送状态
+            config_page = self.main_window.right_menu.pages['config']
+            if port_name in config_page.send_windows:
+                config_page.send_windows[port_name].update_auto_send_status(False)
     
-    def handle_received_data(self, data):
+    def handle_received_data(self, port_name, data):
         """处理接收到的数据"""
-        # 检查是否启用十六进制显示
-        if self.main_window.is_hex_display():
-            # 转换为十六进制显示
-            hex_data = self.serial_handler.bytes_to_hex_string(data.encode('utf-8'))
-            self.main_window.append_receive_data(hex_data + ' ')
+        # 将数据转发到配置页面的接收窗口
+        config_page = self.main_window.right_menu.pages['config']
+        config_page.append_received_data(port_name, data)
+    
+    def handle_connection_changed(self, port_name, connected):
+        """处理连接状态变化"""
+        # 更新配置页面的连接状态
+        config_page = self.main_window.right_menu.pages['config']
+        config_page.update_connection_status(connected, port_name)
+        
+        # 如果断开连接，移除串口组件
+        if not connected:
+            config_page.remove_serial_widget(port_name)
+    
+    def handle_view_received(self, port_name):
+        """处理查看接收信息"""
+        # 这个信号已经由配置页面处理，这里不需要额外处理
+        pass
+    
+    def handle_statistics_updated(self, port_name, receive_count, send_count):
+        """处理统计信息更新"""
+        # 这里可以添加统计信息的处理逻辑
+        pass
+    
+    def handle_disconnect(self):
+        """处理断开连接"""
+        # 断开所有串口连接
+        self.serial_manager.disconnect_all()
+    
+    def handle_delete_serial(self, port_name):
+        """处理删除串口"""
+        # 断开指定串口连接
+        success = self.serial_manager.disconnect_serial(port_name)
+        if success:
+            print(f"已删除串口: {port_name}")
         else:
-            # 普通文本显示
-            self.main_window.append_receive_data(data)
+            print(f"删除串口失败: {port_name}")
     
     def refresh_ports(self):
         """刷新串口列表"""
-        self.serial_handler.get_available_ports()
+        self.serial_manager.get_available_ports()
     
-    def show_error(self, error_message):
+    def show_error(self, port_name, error_message):
         """显示错误信息"""
-        QMessageBox.critical(self.main_window, "错误", error_message)
+        if port_name:
+            QMessageBox.critical(self.main_window, f"串口 {port_name} 错误", error_message)
+        else:
+            QMessageBox.critical(self.main_window, "错误", error_message)
     
     def run(self):
         """运行应用程序"""
