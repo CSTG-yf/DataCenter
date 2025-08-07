@@ -264,6 +264,8 @@ class MainWindow(QMainWindow):
     view_received_signal = pyqtSignal(str)  # 查看接收信息信号
     send_data_to_port_signal = pyqtSignal(str, str, bool, bool, int)  # 向指定串口发送数据信号
     delete_serial_signal = pyqtSignal(str)  # 删除串口信号
+    disconnect_serial_signal = pyqtSignal(str)  # 断开指定串口连接信号
+    connect_serial_signal = pyqtSignal(str)  # 连接指定串口信号
     
     def __init__(self):
         super().__init__()
@@ -522,6 +524,8 @@ class MainWindow(QMainWindow):
         right_pages['config'].view_received_signal.connect(self.view_received_signal.emit)
         right_pages['config'].send_data_signal.connect(self.send_data_to_port_signal.emit)
         right_pages['config'].delete_serial_signal.connect(self.delete_serial_signal.emit)
+        right_pages['config'].disconnect_serial_signal.connect(self.disconnect_serial_signal.emit)
+        right_pages['config'].connect_serial_signal.connect(self.connect_serial_signal.emit)
         
         # 数据页面信号（右侧菜单中的）
         right_pages['data'].send_data_signal.connect(self.send_data_signal.emit)

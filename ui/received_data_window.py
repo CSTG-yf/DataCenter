@@ -179,9 +179,14 @@ class ReceivedDataWindow(QMainWindow):
         self.data_buffer = []  # 数据缓冲区，存储未显示的数据
         self.is_paused = False  # 暂停状态
         self.pause_buffer = []  # 暂停时的数据缓冲区
+        self.is_disconnected = False  # 断开连接状态
         
     def append_data(self, data):
         """添加接收数据"""
+        if self.is_disconnected:
+            # 如果已断开连接，不处理新数据
+            return
+            
         if self.is_paused:
             # 如果暂停，将数据存储到暂停缓冲区
             self.pause_buffer.append(data)
@@ -335,6 +340,20 @@ class ReceivedDataWindow(QMainWindow):
         self.text_display.setPlainText(data)
         self.receive_count = len(data.encode('utf-8'))
         self.receive_count_label.setText(f"接收字节数: {self.receive_count}")
+    
+    def set_disconnected(self, disconnected=True):
+        """设置断开连接状态"""
+        self.is_disconnected = disconnected
+        if disconnected:
+            self.receive_count_label.setText(f"接收字节数: {self.receive_count} (已断开)")
+            # 禁用暂停按钮
+            if hasattr(self, 'pause_btn'):
+                self.pause_btn.setEnabled(False)
+        else:
+            self.receive_count_label.setText(f"接收字节数: {self.receive_count}")
+            # 启用暂停按钮
+            if hasattr(self, 'pause_btn'):
+                self.pause_btn.setEnabled(True)
     
     def on_show_event(self, event):
         """窗口显示事件"""

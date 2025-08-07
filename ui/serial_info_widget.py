@@ -11,10 +11,13 @@ class SerialInfoWidget(QWidget):
     view_received_signal = pyqtSignal(str)  # 查看接收信息信号
     send_data_signal = pyqtSignal(str)      # 发送数据信号
     delete_serial_signal = pyqtSignal(str)  # 删除串口信号
+    disconnect_serial_signal = pyqtSignal(str)  # 断开串口连接信号
+    connect_serial_signal = pyqtSignal(str)  # 连接串口信号
     
     def __init__(self, port_name, parent=None):
         super().__init__(parent)
         self.port_name = port_name
+        self.is_connected = True  # 连接状态
         self.init_ui()
         
     def init_ui(self):
@@ -113,6 +116,28 @@ class SerialInfoWidget(QWidget):
         self.send_btn.clicked.connect(self.open_send_dialog)
         button_layout.addWidget(self.send_btn)
         
+        # 断开连接按钮
+        self.disconnect_btn = QPushButton("断开")
+        self.disconnect_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #fd7e14;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-size: 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #e8690b;
+            }
+            QPushButton:pressed {
+                background-color: #d63384;
+            }
+        """)
+        self.disconnect_btn.clicked.connect(self.disconnect_serial)
+        button_layout.addWidget(self.disconnect_btn)
+        
         # 删除串口按钮
         self.delete_btn = QPushButton("删除")
         self.delete_btn.setStyleSheet("""
@@ -150,9 +175,23 @@ class SerialInfoWidget(QWidget):
     def delete_serial(self):
         """删除串口"""
         self.delete_serial_signal.emit(self.port_name)
+    
+    def disconnect_serial(self):
+        """断开串口连接"""
+        if self.is_connected:
+            # 断开连接
+            self.disconnect_serial_signal.emit(self.port_name)
+            self.is_connected = False
+            self.update_button_states()
+        else:
+            # 重新连接
+            self.connect_serial_signal.emit(self.port_name)
+            self.is_connected = True
+            self.update_button_states()
         
     def update_status(self, connected):
         """更新连接状态"""
+        self.is_connected = connected
         if connected:
             self.status_label.setText("状态: 已连接")
             self.status_label.setStyleSheet("""
@@ -172,4 +211,54 @@ class SerialInfoWidget(QWidget):
                     background-color: transparent;
                     border: none;
                 }
-            """) 
+            """)
+        self.update_button_states()
+    
+    def update_button_states(self):
+        """更新按钮状态"""
+        if self.is_connected:
+            # 已连接状态
+            self.disconnect_btn.setText("断开")
+            self.disconnect_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #fd7e14;
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    padding: 8px 16px;
+                    font-size: 12px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #e8690b;
+                }
+                QPushButton:pressed {
+                    background-color: #d63384;
+                }
+            """)
+            # 启用其他按钮
+            self.view_btn.setEnabled(True)
+            self.send_btn.setEnabled(True)
+        else:
+            # 未连接状态
+            self.disconnect_btn.setText("连接")
+            self.disconnect_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #28a745;
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    padding: 8px 16px;
+                    font-size: 12px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #1e7e34;
+                }
+                QPushButton:pressed {
+                    background-color: #155724;
+                }
+            """)
+            # 禁用其他按钮
+            self.view_btn.setEnabled(False)
+            self.send_btn.setEnabled(False) 

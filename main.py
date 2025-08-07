@@ -54,6 +54,8 @@ class SerialCommunicationApp:
         self.main_window.view_received_signal.connect(self.handle_view_received)
         self.main_window.send_data_to_port_signal.connect(self.handle_send_data_to_port)
         self.main_window.delete_serial_signal.connect(self.handle_delete_serial)
+        self.main_window.disconnect_serial_signal.connect(self.handle_disconnect_serial)
+        self.main_window.connect_serial_signal.connect(self.handle_connect_serial)
         
         # 多串口管理器信号连接到UI
         self.serial_manager.connection_changed.connect(self.handle_connection_changed)
@@ -113,9 +115,7 @@ class SerialCommunicationApp:
         config_page = self.main_window.right_menu.pages['config']
         config_page.update_connection_status(connected, port_name)
         
-        # 如果断开连接，移除串口组件
-        if not connected:
-            config_page.remove_serial_widget(port_name)
+        # 注意：不要在这里删除串口组件，让用户手动选择是否删除
     
     def handle_view_received(self, port_name):
         """处理查看接收信息"""
@@ -140,6 +140,34 @@ class SerialCommunicationApp:
             print(f"已删除串口: {port_name}")
         else:
             print(f"删除串口失败: {port_name}")
+    
+    def handle_disconnect_serial(self, port_name):
+        """处理断开串口连接"""
+        # 断开指定串口连接
+        success = self.serial_manager.disconnect_serial(port_name)
+        if success:
+            print(f"已断开串口连接: {port_name}")
+            # 更新配置页面的连接状态
+            config_page = self.main_window.right_menu.pages['config']
+            config_page.update_connection_status(False, port_name)
+        else:
+            print(f"断开串口连接失败: {port_name}")
+    
+    def handle_connect_serial(self, port_name):
+        """处理连接串口"""
+        # 这里需要重新连接串口，使用默认配置
+        config = {
+            'port': port_name,
+            'baudrate': 115200
+        }
+        success = self.serial_manager.connect_serial(config)
+        if success:
+            print(f"已重新连接串口: {port_name}")
+            # 更新配置页面的连接状态
+            config_page = self.main_window.right_menu.pages['config']
+            config_page.update_connection_status(True, port_name)
+        else:
+            print(f"重新连接串口失败: {port_name}")
     
     def refresh_ports(self):
         """刷新串口列表"""

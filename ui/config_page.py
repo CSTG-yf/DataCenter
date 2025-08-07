@@ -243,6 +243,8 @@ class ConfigPage(QWidget):
     view_received_signal = pyqtSignal(str)  # 查看接收信息信号
     send_data_signal = pyqtSignal(str, str, bool, bool, int)  # 发送数据信号
     delete_serial_signal = pyqtSignal(str)  # 删除串口信号
+    disconnect_serial_signal = pyqtSignal(str)  # 断开指定串口连接信号
+    connect_serial_signal = pyqtSignal(str)  # 连接指定串口信号
     
     def __init__(self):
         super().__init__()
@@ -345,6 +347,8 @@ class ConfigPage(QWidget):
         serial_widget.view_received_signal.connect(self.view_received_data)
         serial_widget.send_data_signal.connect(self.open_send_dialog)
         serial_widget.delete_serial_signal.connect(self.handle_delete_serial)
+        serial_widget.disconnect_serial_signal.connect(self.handle_disconnect_serial)
+        serial_widget.connect_serial_signal.connect(self.handle_connect_serial)
         
         # 添加到布局中
         self.scroll_layout.insertWidget(len(self.serial_widgets), serial_widget)
@@ -399,6 +403,28 @@ class ConfigPage(QWidget):
         
         # 移除串口组件
         self.remove_serial_widget(port_name)
+    
+    def handle_disconnect_serial(self, port_name):
+        """处理断开串口连接"""
+        # 发送断开连接信号
+        self.disconnect_serial_signal.emit(port_name)
+        
+        # 设置相关的接收窗口为断开状态
+        if port_name in self.received_windows:
+            window = self.received_windows[port_name]
+            window.set_disconnected(True)
+        
+        # 注意：不删除串口管理区域，只断开连接
+    
+    def handle_connect_serial(self, port_name):
+        """处理连接串口"""
+        # 发送连接信号
+        self.connect_serial_signal.emit(port_name)
+        
+        # 恢复相关的接收窗口状态
+        if port_name in self.received_windows:
+            window = self.received_windows[port_name]
+            window.set_disconnected(False)
     
     def append_received_data(self, port_name, data):
         """添加接收数据到指定串口"""
