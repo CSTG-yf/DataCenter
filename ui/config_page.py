@@ -456,8 +456,16 @@ class ConfigPage(QWidget):
     def append_received_data(self, port_name, data):
         """添加接收数据到指定串口"""
         if port_name in self.received_windows:
-            # 如果窗口已打开，直接显示数据
-            self.received_windows[port_name].append_data(data)
+            window = self.received_windows[port_name]
+            # 检查窗口是否真的打开
+            if hasattr(window, 'is_window_open') and window.is_window_open:
+                # 如果窗口已打开，直接显示数据
+                print(f"向窗口 {port_name} 发送数据: {len(data)} 字节")
+                window.append_data(data)
+            else:
+                print(f"窗口 {port_name} 未打开，忽略数据")
+        else:
+            print(f"窗口 {port_name} 不存在，忽略数据")
         # 如果窗口未打开，不处理数据（根据新需求，窗口未打开时不存储数据）
     
     def update_received_windows_interval(self, interval_text):

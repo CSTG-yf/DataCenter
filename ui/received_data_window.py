@@ -205,18 +205,25 @@ class ReceivedDataWindow(QMainWindow):
         # 新增：滚动轴控制变量
         self.scroll_at_bottom = True  # 是否在底部
         self.scroll_position = 0  # 滚动位置
+        
+        # 初始化缓冲区状态显示
+        self._update_buffer_status()
     
     def append_data(self, data):
         """添加接收数据（优化版本，减少闪烁）"""
         if self.is_disconnected:
             # 如果已断开连接，不处理新数据
+            print(f"窗口 {self.port_name} 已断开连接，忽略数据")
             return
             
         # 只有在窗口打开时才处理数据
         if not self.is_window_open:
             # 窗口未打开时，不处理数据
+            print(f"窗口 {self.port_name} 未打开，忽略数据")
             return
             
+        print(f"窗口 {self.port_name} 接收到数据: {len(data)} 字节")
+        
         if self.is_paused:
             # 如果暂停，将数据存储到暂停缓冲区，但不更新显示
             self.pause_buffer.append(data)
@@ -248,6 +255,8 @@ class ReceivedDataWindow(QMainWindow):
             
             # 标记有待更新的数据
             self.pending_update = True
+            
+            print(f"窗口 {self.port_name} 添加了 {len(new_lines)} 行数据，当前缓冲区: {len(self.display_lines)} 行")
         
         self.receive_count += len(data.encode('utf-8'))
         self.receive_count_label.setText(f"接收字节数: {self.receive_count}")
@@ -255,6 +264,7 @@ class ReceivedDataWindow(QMainWindow):
     def _perform_update(self):
         """执行定时更新显示"""
         if self.pending_update and not self.is_paused:
+            print(f"窗口 {self.port_name} 执行更新显示")
             self._update_display()
             self.pending_update = False
     
@@ -322,9 +332,8 @@ class ReceivedDataWindow(QMainWindow):
             self.current_chars -= len(removed_line)
             removed_count += 1
         
-        # 只有在删除了数据时才更新缓冲区状态显示
-        if removed_count > 0:
-            self._update_buffer_status()
+        # 更新缓冲区状态显示（无论是否删除了数据）
+        self._update_buffer_status()
     
     def _update_display(self):
         """更新显示内容（重新设计，避免闪烁）"""
@@ -392,6 +401,9 @@ class ReceivedDataWindow(QMainWindow):
             
             # 清空缓冲区
             self.data_buffer = ""
+        
+        # 确保缓冲区状态显示正确
+        self._update_buffer_status()
     
     def clear_data(self):
         """清空数据"""
@@ -571,8 +583,20 @@ class ReceivedDataWindow(QMainWindow):
     def on_show_event(self, event):
         """窗口显示事件"""
         self.is_window_open = True
-        # 显示缓冲的数据
+        
+        # 重新启动定时器
+        if not self.update_timer.isActive():
+            self.update_timer.start(self.update_interval_ms)
+        
+        # 显示缓冲的数据（如果有的话）
         self.show_buffered_data()
+        
+        # 确保缓冲区状态显示正确
+        self._update_buffer_status()
+        
+        # 打印调试信息
+        print(f"窗口 {self.port_name} 已打开，is_window_open = {self.is_window_open}")
+        
         event.accept()
     
     def closeEvent(self, event):
@@ -583,6 +607,9 @@ class ReceivedDataWindow(QMainWindow):
         # 设置窗口关闭状态
         self.is_window_open = False
         
+        # 清空显示内容
+        self.text_display.clear()
+        
         # 清空所有缓冲区
         self.data_buffer = ""
         self.pause_buffer.clear()
@@ -590,8 +617,16 @@ class ReceivedDataWindow(QMainWindow):
         self.current_chars = 0
         self.parsed_data_buffer = ""
         
-        # 清理资源
+        # 重置状态
         self.is_paused = False
         self.is_disconnected = False
+        self.pending_update = False
+        
+        # 重置接收计数
+        self.receive_count = 0
+        self.receive_count_label.setText("接收字节数: 0")
+        
+        # 更新缓冲区状态显示
+        self._update_buffer_status()
         
         event.accept() 
