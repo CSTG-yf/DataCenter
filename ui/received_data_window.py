@@ -2,6 +2,7 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QTextEdit, QPushButton, QLabel, QScrollArea, QFrame)
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QTextCursor
+from ui.settings_utils import parse_update_interval
 
 
 class ReceivedDataWindow(QMainWindow):
@@ -10,7 +11,15 @@ class ReceivedDataWindow(QMainWindow):
     def __init__(self, port_name, parent=None):
         super().__init__(parent)
         self.port_name = port_name
+        self.is_window_open = False  # 添加窗口状态跟踪
         self.init_ui()
+        
+        # 更新间隔相关
+        self.update_interval_ms = 100  # 默认100ms
+        self.pending_update = False  # 是否有待更新的数据
+        self.update_timer = QTimer()
+        self.update_timer.timeout.connect(self._perform_update)
+        self.update_timer.start(self.update_interval_ms)
         
     def init_ui(self):
         """初始化UI"""
@@ -177,7 +186,7 @@ class ReceivedDataWindow(QMainWindow):
         # 初始化数据
         self.receive_count = 0
         self.auto_scroll = True
-        self.data_buffer = []  # 数据缓冲区，存储未显示的数据
+        self.data_buffer = ""  # 数据缓冲区，存储未显示的数据（字符串）
         self.is_paused = False  # 暂停状态
         self.pause_buffer = []  # 暂停时的数据缓冲区
         self.is_disconnected = False  # 断开连接状态
@@ -187,43 +196,110 @@ class ReceivedDataWindow(QMainWindow):
         self.max_display_chars = 1000000  # 最大显示字符数
         self.display_lines = []  # 存储显示的行
         self.current_chars = 0  # 当前字符数
+        
+        # 新增：整合main1.py的缓冲区机制
+        self.max_buffer_length = 500000  # 最大缓冲区长度
+        self.max_display_length = 200000  # 最大显示长度
+        self.parsed_data_buffer = ""  # 解析数据缓冲区
+        
+        # 新增：滚动轴控制变量
+        self.scroll_at_bottom = True  # 是否在底部
+        self.scroll_position = 0  # 滚动位置
     
     def append_data(self, data):
-        """添加接收数据"""
+        """添加接收数据（优化版本，减少闪烁）"""
         if self.is_disconnected:
             # 如果已断开连接，不处理新数据
             return
             
+        # 只有在窗口打开时才处理数据
+        if not self.is_window_open:
+            # 窗口未打开时，不处理数据
+            return
+            
         if self.is_paused:
-            # 如果暂停，将数据存储到暂停缓冲区
+            # 如果暂停，将数据存储到暂停缓冲区，但不更新显示
             self.pause_buffer.append(data)
             self.receive_count += len(data.encode('utf-8'))
             self.receive_count_label.setText(f"接收字节数: {self.receive_count} (已暂停)")
             return
         
+        # 更新数据缓冲区
+        self.data_buffer += data
+        if len(self.data_buffer) > self.max_buffer_length:
+            self.data_buffer = self.data_buffer[-self.max_buffer_length:]
+        
         # 将数据按行分割
         lines = data.split('\n')
         
+        # 批量添加新行
+        new_lines = []
         for line in lines:
             if line:  # 跳过空行
-                # 添加到显示行列表
-                self.display_lines.append(line)
+                new_lines.append(line)
                 self.current_chars += len(line)
-                
-                # 检查是否需要删除最老的数据
-                self._manage_buffer_size()
         
-        # 更新显示
-        self._update_display()
+        # 批量添加到显示行列表
+        if new_lines:
+            self.display_lines.extend(new_lines)
+            
+            # 检查是否需要删除最老的数据
+            self._manage_buffer_size()
+            
+            # 标记有待更新的数据
+            self.pending_update = True
         
         self.receive_count += len(data.encode('utf-8'))
         self.receive_count_label.setText(f"接收字节数: {self.receive_count}")
+    
+    def _perform_update(self):
+        """执行定时更新显示"""
+        if self.pending_update and not self.is_paused:
+            self._update_display()
+            self.pending_update = False
+    
+    def set_update_interval(self, interval_text):
+        """设置更新间隔
         
-        # 只有在非暂停状态且启用自动滚动时才滚动到底部
-        if self.auto_scroll and not self.is_paused:
-            cursor = self.text_display.textCursor()
-            cursor.movePosition(QTextCursor.MoveOperation.End)
-            self.text_display.setTextCursor(cursor)
+        Args:
+            interval_text (str): 更新间隔设置文本，如 "标准更新 (100ms)"
+        """
+        new_interval = parse_update_interval(interval_text)
+        if new_interval != self.update_interval_ms:
+            self.update_interval_ms = new_interval
+            self.update_timer.setInterval(new_interval)
+            # 如果间隔为0，立即执行一次更新
+            if new_interval == 0 and self.pending_update:
+                self._perform_update()
+    
+    def _update_scroll_position(self):
+        """更新滚动位置（优化版本，避免闪烁）"""
+        if not self.auto_scroll or self.is_paused:
+            return
+            
+        # 记录当前滚动条位置
+        scroll_bar = self.text_display.verticalScrollBar()
+        if scroll_bar is None:
+            return
+            
+        self.scroll_position = scroll_bar.value()
+        self.scroll_at_bottom = (self.scroll_position == scroll_bar.maximum())
+        
+        # 如果自动滚动开启，则滚动到底部
+        if self.auto_scroll:
+            try:
+                scroll_bar.setUpdatesEnabled(False)
+                cursor = self.text_display.textCursor()
+                cursor.movePosition(QTextCursor.MoveOperation.End)
+                self.text_display.setTextCursor(cursor)
+                # 确保滚动条也在底部
+                scroll_bar.setValue(scroll_bar.maximum())
+            except Exception as e:
+                # 如果滚动失败，忽略错误
+                print(f"滚动位置更新失败: {e}")
+                pass
+            finally:
+                scroll_bar.setUpdatesEnabled(True)
     
     def _update_buffer_status(self):
         """更新缓冲区状态显示"""
@@ -234,85 +310,110 @@ class ReceivedDataWindow(QMainWindow):
     def _manage_buffer_size(self):
         """管理缓冲区大小，删除最老的数据"""
         # 检查行数限制
+        removed_count = 0
         while len(self.display_lines) > self.max_display_lines:
             removed_line = self.display_lines.pop(0)
             self.current_chars -= len(removed_line)
+            removed_count += 1
         
         # 检查字符数限制
         while self.current_chars > self.max_display_chars and len(self.display_lines) > 1:
             removed_line = self.display_lines.pop(0)
             self.current_chars -= len(removed_line)
+            removed_count += 1
         
-        # 更新缓冲区状态显示
-        self._update_buffer_status()
+        # 只有在删除了数据时才更新缓冲区状态显示
+        if removed_count > 0:
+            self._update_buffer_status()
     
     def _update_display(self):
-        """更新显示内容"""
+        """更新显示内容（重新设计，避免闪烁）"""
         # 检查是否需要更新显示
         current_content = self.text_display.toPlainText()
         new_content = '\n'.join(self.display_lines)
         
         # 只有当内容真正改变时才更新
         if current_content != new_content:
-            # 清空当前显示
-            self.text_display.clear()
+            # 记录当前滚动条位置
+            scroll_bar = self.text_display.verticalScrollBar()
+            at_bottom = scroll_bar.value() == scroll_bar.maximum()
+            current_value = scroll_bar.value()
             
-            # 重新构建显示内容
-            if self.display_lines:
+            # 使用更稳定的更新方式
+            try:
+                # 暂时禁用滚动条更新和文本显示更新，避免闪烁
+                scroll_bar.setUpdatesEnabled(False)
+                self.text_display.setUpdatesEnabled(False)
+                
+                # 直接设置新内容，避免增量更新
                 self.text_display.setPlainText(new_content)
-    
-    def add_to_buffer(self, data):
-        """添加数据到缓冲区（窗口未打开时）"""
-        # 将数据按行分割并添加到缓冲区
-        lines = data.split('\n')
-        for line in lines:
-            if line:  # 跳过空行
-                self.data_buffer.append(line)
-        
-        self.receive_count += len(data.encode('utf-8'))
+                
+                # 恢复滚动条位置
+                if self.auto_scroll and not self.is_paused:
+                    # 如果自动滚动开启，则滚动到底部
+                    scroll_bar.setValue(scroll_bar.maximum())
+                    cursor = self.text_display.textCursor()
+                    cursor.movePosition(QTextCursor.MoveOperation.End)
+                    self.text_display.setTextCursor(cursor)
+                else:
+                    # 如果自动滚动关闭，保持原来的位置
+                    if at_bottom:
+                        scroll_bar.setValue(scroll_bar.maximum())
+                    else:
+                        scroll_bar.setValue(current_value)
+                        
+            finally:
+                # 重新启用滚动条更新和文本显示更新
+                scroll_bar.setUpdatesEnabled(True)
+                self.text_display.setUpdatesEnabled(True)
     
     def show_buffered_data(self):
-        """显示缓冲区中的数据"""
+        """显示缓冲区中的数据（窗口重新打开时调用）"""
+        # 由于窗口关闭时会清空缓冲区，这个方法主要用于窗口重新打开时的初始化
+        # 如果有缓冲数据，则显示
         if self.data_buffer:
-            for line in self.data_buffer:
-                # 添加到显示行列表
-                self.display_lines.append(line)
-                self.current_chars += len(line)
+            # 将字符串缓冲区按行分割并添加到显示行列表
+            lines = self.data_buffer.split('\n')
+            new_lines = []
+            for line in lines:
+                if line:  # 跳过空行
+                    new_lines.append(line)
+                    self.current_chars += len(line)
+            
+            # 批量添加到显示行列表
+            if new_lines:
+                self.display_lines.extend(new_lines)
                 
                 # 检查是否需要删除最老的数据
                 self._manage_buffer_size()
-            
-            # 更新显示
-            self._update_display()
-            
-            # 只有在非暂停状态且启用自动滚动时才滚动到底部
-            if self.auto_scroll and not self.is_paused:
-                cursor = self.text_display.textCursor()
-                cursor.movePosition(QTextCursor.MoveOperation.End)
-                self.text_display.setTextCursor(cursor)
+                
+                # 标记有待更新的数据
+                self.pending_update = True
             
             # 清空缓冲区
-            self.data_buffer.clear()
+            self.data_buffer = ""
     
     def clear_data(self):
         """清空数据"""
         self.text_display.clear()
         self.receive_count = 0
         self.receive_count_label.setText("接收字节数: 0")
-        self.data_buffer.clear()  # 同时清空缓冲区
+        self.data_buffer = ""  # 同时清空缓冲区
         self.pause_buffer.clear()  # 清空暂停缓冲区
         
         # 清空循环缓冲区
         self.display_lines.clear()
         self.current_chars = 0
         
+        # 清空解析数据缓冲区
+        self.parsed_data_buffer = ""
+        
         # 更新缓冲区状态显示
         self._update_buffer_status()
     
     def toggle_auto_scroll(self):
-        """切换自动滚动"""
+        """切换自动滚动（优化版本，避免闪烁）"""
         self.auto_scroll = not self.auto_scroll
-        status = "开启" if self.auto_scroll else "关闭"
         
         if self.auto_scroll:
             # 开启状态
@@ -331,6 +432,17 @@ class ReceivedDataWindow(QMainWindow):
                     background-color: #1e7e34;
                 }
             """)
+            # 如果开启自动滚动，立即滚动到底部
+            if not self.is_paused:
+                try:
+                    scroll_bar = self.text_display.verticalScrollBar()
+                    scroll_bar.setUpdatesEnabled(False)
+                    scroll_bar.setValue(scroll_bar.maximum())
+                    cursor = self.text_display.textCursor()
+                    cursor.movePosition(QTextCursor.MoveOperation.End)
+                    self.text_display.setTextCursor(cursor)
+                finally:
+                    scroll_bar.setUpdatesEnabled(True)
         else:
             # 关闭状态
             self.auto_scroll_btn.setText("自动滚动: 关闭")
@@ -348,9 +460,17 @@ class ReceivedDataWindow(QMainWindow):
                     background-color: #5a6268;
                 }
             """)
+            # 如果关闭自动滚动，保持当前滚动位置
+            try:
+                scroll_bar = self.text_display.verticalScrollBar()
+                current_value = scroll_bar.value()
+                scroll_bar.setUpdatesEnabled(False)
+                scroll_bar.setValue(current_value)
+            finally:
+                scroll_bar.setUpdatesEnabled(True)
     
     def toggle_pause(self):
-        """切换暂停状态"""
+        """切换暂停状态（优化版本，避免闪烁）"""
         self.is_paused = not self.is_paused
         
         if self.is_paused:
@@ -398,28 +518,31 @@ class ReceivedDataWindow(QMainWindow):
             
             # 恢复时显示暂停期间的数据
             if self.pause_buffer:
+                # 批量处理暂停期间的数据
+                all_new_lines = []
                 for data in self.pause_buffer:
-                    # 将数据按行分割
                     lines = data.split('\n')
                     for line in lines:
                         if line:  # 跳过空行
-                            # 添加到显示行列表
-                            self.display_lines.append(line)
+                            all_new_lines.append(line)
                             self.current_chars += len(line)
-                            
-                            # 检查是否需要删除最老的数据
-                            self._manage_buffer_size()
                 
-                # 更新显示
-                self._update_display()
+                # 批量添加到显示行列表
+                if all_new_lines:
+                    self.display_lines.extend(all_new_lines)
+                    
+                    # 检查是否需要删除最老的数据
+                    self._manage_buffer_size()
+                    
+                    # 更新显示（使用稳定的更新方式，避免闪烁）
+                    self._update_display()
                 
-                # 只有在启用自动滚动时才滚动到底部
-                if self.auto_scroll:
-                    cursor = self.text_display.textCursor()
-                    cursor.movePosition(QTextCursor.MoveOperation.End)
-                    self.text_display.setTextCursor(cursor)
-                
+                # 清空暂停缓冲区
                 self.pause_buffer.clear()
+            
+            # 恢复时立即执行一次更新
+            if self.pending_update:
+                self._perform_update()
     
     def get_data(self):
         """获取当前数据"""
@@ -447,13 +570,28 @@ class ReceivedDataWindow(QMainWindow):
     
     def on_show_event(self, event):
         """窗口显示事件"""
+        self.is_window_open = True
         # 显示缓冲的数据
         self.show_buffered_data()
         event.accept()
     
     def closeEvent(self, event):
         """窗口关闭事件"""
+        # 停止定时器
+        self.update_timer.stop()
+        
+        # 设置窗口关闭状态
+        self.is_window_open = False
+        
+        # 清空所有缓冲区
+        self.data_buffer = ""
+        self.pause_buffer.clear()
+        self.display_lines.clear()
+        self.current_chars = 0
+        self.parsed_data_buffer = ""
+        
         # 清理资源
         self.is_paused = False
         self.is_disconnected = False
+        
         event.accept() 

@@ -458,12 +458,17 @@ class ConfigPage(QWidget):
         if port_name in self.received_windows:
             # 如果窗口已打开，直接显示数据
             self.received_windows[port_name].append_data(data)
-        else:
-            # 如果窗口未打开，创建窗口但不显示，只存储数据
-            window = ReceivedDataWindow(port_name, self)
-            window.add_to_buffer(data)  # 添加到缓冲区
-            self.received_windows[port_name] = window
-            # 不调用show()，窗口保持隐藏状态
+        # 如果窗口未打开，不处理数据（根据新需求，窗口未打开时不存储数据）
+    
+    def update_received_windows_interval(self, interval_text):
+        """更新所有接收窗口的更新间隔
+        
+        Args:
+            interval_text (str): 更新间隔设置文本
+        """
+        for window in self.received_windows.values():
+            if hasattr(window, 'set_update_interval'):
+                window.set_update_interval(interval_text)
     
     def remove_serial_widget(self, port_name):
         """移除串口组件"""

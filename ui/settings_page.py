@@ -398,6 +398,75 @@ class SettingsPage(QWidget):
         self.show_direction_check.toggled.connect(self.on_setting_changed)
         display_settings_layout.addWidget(self.show_direction_check)
         
+        # 数据显示更新间隔
+        update_interval_layout = QHBoxLayout()
+        update_interval_label = QLabel("数据显示更新间隔:")
+        update_interval_label.setStyleSheet("""
+            QLabel {
+                font-size: 14px;
+                color: #333333;
+                background-color: transparent;
+                border: none;
+            }
+        """)
+        update_interval_layout.addWidget(update_interval_label)
+        
+        self.update_interval_combo = QComboBox()
+        self.update_interval_combo.addItems([
+            "实时更新 (0ms)",
+            "快速更新 (50ms)", 
+            "标准更新 (100ms)",
+            "慢速更新 (200ms)",
+            "极慢更新 (500ms)"
+        ])
+        self.update_interval_combo.setCurrentText("标准更新 (100ms)")  # 默认选择
+        self.update_interval_combo.setStyleSheet("""
+            QComboBox {
+                border: 1px solid #d0d0d0;
+                border-radius: 6px;
+                padding: 8px 12px;
+                background-color: white;
+                font-size: 14px;
+                color: #333333;
+                min-width: 150px;
+            }
+            QComboBox:hover {
+                border: 2px solid #2196F3;
+            }
+            QComboBox:focus {
+                border: 2px solid #1976D2;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #666666;
+                margin-right: 5px;
+            }
+        """)
+        self.update_interval_combo.currentTextChanged.connect(self.on_setting_changed)
+        update_interval_layout.addWidget(self.update_interval_combo)
+        update_interval_layout.addStretch()
+        display_settings_layout.addLayout(update_interval_layout)
+        
+        # 更新间隔说明
+        update_interval_desc = QLabel("较快的更新间隔可能导致界面闪烁，较慢的更新间隔可能影响实时性")
+        update_interval_desc.setStyleSheet("""
+            QLabel {
+                font-size: 12px;
+                color: #666666;
+                background-color: transparent;
+                border: none;
+                padding: 0px;
+                margin: 0px;
+            }
+        """)
+        display_settings_layout.addWidget(update_interval_desc)
+        
         layout.addWidget(display_settings_group)
         
         # 控制按钮
@@ -441,7 +510,8 @@ class SettingsPage(QWidget):
             'auto_save_interval': self.auto_save_interval.value(),
             'font_size': int(self.font_size_combo.currentText()),
             'show_timestamp': self.show_timestamp_check.isChecked(),
-            'show_direction': self.show_direction_check.isChecked()
+            'show_direction': self.show_direction_check.isChecked(),
+            'update_interval': self.update_interval_combo.currentText()
         }
     
     def set_settings(self, settings):
@@ -468,4 +538,7 @@ class SettingsPage(QWidget):
             self.show_timestamp_check.setChecked(settings['show_timestamp'])
         
         if 'show_direction' in settings:
-            self.show_direction_check.setChecked(settings['show_direction']) 
+            self.show_direction_check.setChecked(settings['show_direction'])
+        
+        if 'update_interval' in settings:
+            self.update_interval_combo.setCurrentText(settings['update_interval']) 

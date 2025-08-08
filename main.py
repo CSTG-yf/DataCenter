@@ -195,6 +195,13 @@ class SerialCommunicationApp:
                 print("全局设置已更新")
             else:
                 print("全局设置更新失败")
+            
+            # 处理更新间隔设置
+            if 'update_interval' in settings:
+                config_page = self.main_window.right_menu.pages['config']
+                config_page.update_received_windows_interval(settings['update_interval'])
+                print(f"已更新数据显示间隔: {settings['update_interval']}")
+                
         except Exception as e:
             print(f"处理设置改变失败: {str(e)}")
     
