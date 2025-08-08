@@ -8,12 +8,13 @@
 
 import sys
 import os
-from PyQt6.QtWidgets import QApplication, QMessageBox
-from PyQt6.QtCore import QTimer
 
 # 添加项目路径到sys.path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, current_dir)
 
+from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtCore import QTimer, Qt
 from ui.main_window import MainWindow
 from core.multi_serial_manager import MultiSerialManager
 
@@ -64,8 +65,12 @@ class SerialCommunicationApp:
         self.serial_manager.port_list_updated.connect(self.main_window.update_port_list)
         self.serial_manager.statistics_updated.connect(self.handle_statistics_updated)
         
+        # 连接设置页面的信号
+        settings_page = self.main_window.right_menu.pages['settings']
+        settings_page.settings_changed_signal.connect(self.handle_settings_changed)
+    
     def handle_send_data(self, data):
-        """处理发送数据（兼容旧接口）"""
+        """处理发送数据（兼容旧接口）"""                
         if not data:
             return
         
@@ -113,7 +118,13 @@ class SerialCommunicationApp:
         """处理连接状态变化"""
         # 更新配置页面的连接状态
         config_page = self.main_window.right_menu.pages['config']
-        config_page.update_connection_status(connected, port_name)
+        
+        if connected:
+            # 连接成功，创建串口管理区域
+            config_page.handle_connection_success(port_name)
+        else:
+            # 连接失败，只更新状态（不创建管理区域）
+            config_page.update_connection_status(connected, port_name)
         
         # 注意：不要在这里删除串口组件，让用户手动选择是否删除
     
@@ -154,20 +165,38 @@ class SerialCommunicationApp:
             print(f"断开串口连接失败: {port_name}")
     
     def handle_connect_serial(self, port_name):
-        """处理连接串口"""
-        # 这里需要重新连接串口，使用默认配置
-        config = {
-            'port': port_name,
-            'baudrate': 115200
-        }
-        success = self.serial_manager.connect_serial(config)
-        if success:
-            print(f"已重新连接串口: {port_name}")
-            # 更新配置页面的连接状态
-            config_page = self.main_window.right_menu.pages['config']
-            config_page.update_connection_status(True, port_name)
-        else:
-            print(f"重新连接串口失败: {port_name}")
+        """处理重新连接串口"""
+        try:
+            # 获取串口的默认配置
+            config = {
+                'port': port_name,
+                'baudrate': 115200,  # 默认波特率
+                'auto_save': True    # 默认启用自动保存
+            }
+            
+            # 连接串口
+            success = self.serial_manager.connect_serial(config)
+            if success:
+                # 更新连接状态
+                config_page = self.main_window.right_menu.pages['config']
+                config_page.update_connection_status(True, port_name)
+            else:
+                QMessageBox.warning(self.main_window, "警告", f"重新连接串口 {port_name} 失败")
+                
+        except Exception as e:
+            QMessageBox.critical(self.main_window, "错误", f"重新连接串口失败: {str(e)}")
+    
+    def handle_settings_changed(self, settings):
+        """处理设置改变"""
+        try:
+            # 更新多串口管理器的全局设置
+            success = self.serial_manager.update_global_settings(settings)
+            if success:
+                print("全局设置已更新")
+            else:
+                print("全局设置更新失败")
+        except Exception as e:
+            print(f"处理设置改变失败: {str(e)}")
     
     def refresh_ports(self):
         """刷新串口列表"""
@@ -182,15 +211,27 @@ class SerialCommunicationApp:
     
     def run(self):
         """运行应用程序"""
-        # 主窗口已经在初始化时设置了最大化状态并显示
-        return self.app.exec()
+        try:
+            # 主窗口已经在初始化时设置了最大化状态并显示
+            return self.app.exec()
+        except Exception as e:
+            print(f"应用程序运行错误: {str(e)}")
+            return 1
 
 
 def main():
     """主函数"""
     try:
         app = SerialCommunicationApp()
-        sys.exit(app.run())
+        result = app.run()
+        
+        # 清理资源
+        try:
+            app.serial_manager.disconnect_all()
+        except Exception as e:
+            print(f"清理串口资源时发生错误: {str(e)}")
+        
+        sys.exit(result)
     except Exception as e:
         print(f"程序启动失败: {str(e)}")
         sys.exit(1)

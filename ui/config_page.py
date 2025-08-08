@@ -249,7 +249,8 @@ class SerialConnectionDialog(QDialog):
             
         config = {
             'port': port,
-            'baudrate': int(self.baud_combo.currentText())
+            'baudrate': int(self.baud_combo.currentText()),
+            'auto_save': True  # 默认启用自动保存
         }
         self.connection_requested.emit(config)
         self.accept()
@@ -364,6 +365,14 @@ class ConfigPage(QWidget):
             QMessageBox.warning(self, "警告", f"串口 {port_name} 已经存在！")
             return
         
+        # 先发送连接信号（默认启用自动保存）
+        config['auto_save'] = True
+        self.connect_signal.emit(config)
+        
+        # 注意：串口管理区域将在连接成功后通过handle_connection_success方法创建
+    
+    def handle_connection_success(self, port_name):
+        """处理连接成功"""
         # 创建串口信息组件
         serial_widget = SerialInfoWidget(port_name)
         serial_widget.view_received_signal.connect(self.view_received_data)
@@ -379,9 +388,6 @@ class ConfigPage(QWidget):
         # 隐藏提示文本
         self.hint_label.hide()
         self.action_label.hide()
-        
-        # 发送连接信号
-        self.connect_signal.emit(config)
         
         # 更新界面显示
         self.update_connection_status(True, port_name)
@@ -439,14 +445,13 @@ class ConfigPage(QWidget):
         # 注意：不删除串口管理区域，只断开连接
     
     def handle_connect_serial(self, port_name):
-        """处理连接串口"""
-        # 发送连接信号
+        """处理重新连接串口"""
+        # 发送重新连接信号
         self.connect_serial_signal.emit(port_name)
         
-        # 恢复相关的接收窗口状态
+        # 更新接收窗口状态
         if port_name in self.received_windows:
-            window = self.received_windows[port_name]
-            window.set_disconnected(False)
+            self.received_windows[port_name].set_disconnected(False)
     
     def append_received_data(self, port_name, data):
         """添加接收数据到指定串口"""

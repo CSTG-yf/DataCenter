@@ -3,6 +3,7 @@ import serial.tools.list_ports
 import threading
 import time
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer
+from .data_saver import DataSaver
 
 
 class MultiSerialManager(QObject):
@@ -24,6 +25,18 @@ class MultiSerialManager(QObject):
         
         # 统计信息 {port_name: {'receive_count': 0, 'send_count': 0}}
         self.statistics = {}
+        
+        # 数据保存器
+        self.data_saver = DataSaver()
+        
+        # 自动保存配置 {port_name: {'enabled': bool, 'baudrate': int}}
+        self.auto_save_config = {}
+        
+        # 全局设置
+        self.global_settings = {
+            'auto_save_serial': True,  # 默认启用自动保存
+            'file_size_limit': 500     # 默认500MB
+        }
         
     def get_available_ports(self):
         """获取可用串口列表"""
@@ -50,6 +63,7 @@ class MultiSerialManager(QObject):
             bytesize = config.get('bytesize', 8)
             stopbits = config.get('stopbits', 1)
             parity = config.get('parity', 'N')
+            auto_save = config.get('auto_save', self.global_settings['auto_save_serial'])
             
             # 创建串口对象
             serial_port = serial.Serial(
@@ -67,6 +81,20 @@ class MultiSerialManager(QObject):
                 
                 # 初始化统计信息
                 self.statistics[port_name] = {'receive_count': 0, 'send_count': 0}
+                
+                # 存储自动保存配置
+                self.auto_save_config[port_name] = {
+                    'enabled': auto_save,
+                    'baudrate': baudrate
+                }
+                
+                # 如果启用自动保存，开始保存
+                if auto_save:
+                    # 如果之前有保存，先停止
+                    if self.data_saver.is_saving(port_name):
+                        self.data_saver.stop_saving(port_name)
+                    # 开始新的保存（创建新文件）
+                    self.data_saver.start_saving(port_name, baudrate)
                 
                 # 创建自动发送定时器
                 auto_send_timer = QTimer()
@@ -92,49 +120,66 @@ class MultiSerialManager(QObject):
                 return True
             else:
                 self.error_occurred.emit(port_name, "串口打开失败")
+                # 发送连接失败状态信号
+                self.connection_changed.emit(port_name, False)
                 return False
                 
         except serial.SerialException as e:
             self.error_occurred.emit(port_name, f"串口连接失败: {str(e)}")
+            # 发送连接失败状态信号
+            self.connection_changed.emit(port_name, False)
             return False
         except Exception as e:
             self.error_occurred.emit(port_name, f"连接错误: {str(e)}")
+            # 发送连接失败状态信号
+            self.connection_changed.emit(port_name, False)
             return False
     
     def disconnect_serial(self, port_name):
-        """断开指定串口连接"""
+        """断开串口连接"""
         try:
-            if port_name in self.serial_ports:
-                # 停止自动发送
-                if port_name in self.auto_send_timers:
-                    self.auto_send_timers[port_name].stop()
-                
-                # 关闭串口
-                serial_port = self.serial_ports[port_name]
-                if serial_port.is_open:
-                    serial_port.close()
-                
-                # 清理资源
-                del self.serial_ports[port_name]
-                if port_name in self.auto_send_timers:
-                    del self.auto_send_timers[port_name]
-                if port_name in self.statistics:
-                    del self.statistics[port_name]
-                
-                # 等待接收线程自然结束
-                import time
-                time.sleep(0.1)
-                
-                # 发送连接状态信号
-                self.connection_changed.emit(port_name, False)
-                
-                return True
-            else:
+            if port_name not in self.serial_ports:
                 self.error_occurred.emit(port_name, f"串口 {port_name} 未连接")
                 return False
-                
+            
+            # 停止自动发送
+            self.stop_auto_send(port_name)
+            
+            # 停止数据保存
+            if port_name in self.auto_save_config and self.auto_save_config[port_name]['enabled']:
+                self.data_saver.stop_saving(port_name)
+            
+            # 关闭串口
+            serial_port = self.serial_ports[port_name]
+            if serial_port.is_open:
+                serial_port.close()
+            
+            # 等待接收线程结束
+            if port_name in self.receive_threads:
+                import time
+                time.sleep(0.1)
+            
+            # 清理资源
+            if port_name in self.serial_ports:
+                del self.serial_ports[port_name]
+            if port_name in self.receive_threads:
+                del self.receive_threads[port_name]
+            if port_name in self.auto_send_timers:
+                del self.auto_send_timers[port_name]
+            if port_name in self.auto_send_data:
+                del self.auto_send_data[port_name]
+            if port_name in self.statistics:
+                del self.statistics[port_name]
+            if port_name in self.auto_save_config:
+                del self.auto_save_config[port_name]
+            
+            # 发送连接状态信号
+            self.connection_changed.emit(port_name, False)
+            
+            return True
+            
         except Exception as e:
-            self.error_occurred.emit(port_name, f"断开连接错误: {str(e)}")
+            self.error_occurred.emit(port_name, f"断开串口连接失败: {str(e)}")
             return False
     
     def send_data(self, port_name, data, hex_mode=False):
@@ -204,6 +249,11 @@ class MultiSerialManager(QObject):
                                 self.statistics[port_name]['receive_count'],
                                 self.statistics[port_name]['send_count']
                             )
+                        
+                        # 自动保存数据
+                        if (port_name in self.auto_save_config and 
+                            self.auto_save_config[port_name]['enabled']):
+                            self.data_saver.save_data(port_name, data_str)
                         
                         # 发送接收数据信号
                         self.data_received.emit(port_name, data_str)
@@ -300,5 +350,75 @@ class MultiSerialManager(QObject):
     
     def disconnect_all(self):
         """断开所有串口连接"""
-        for port_name in list(self.serial_ports.keys()):
-            self.disconnect_serial(port_name) 
+        try:
+            # 停止所有定时器
+            for timer in self.auto_send_timers.values():
+                try:
+                    timer.stop()
+                except Exception as e:
+                    print(f"停止定时器时发生错误: {str(e)}")
+            
+            # 断开所有串口
+            for port_name in list(self.serial_ports.keys()):
+                try:
+                    self.disconnect_serial(port_name)
+                except Exception as e:
+                    print(f"断开串口 {port_name} 时发生错误: {str(e)}")
+            
+            # 关闭所有数据保存
+            try:
+                self.data_saver.close_all()
+            except Exception as e:
+                print(f"关闭数据保存时发生错误: {str(e)}")
+            
+            return True
+        except Exception as e:
+            self.error_occurred.emit("", f"断开所有连接失败: {str(e)}")
+            return False 
+
+    def update_auto_save_config(self, port_name, auto_save_enabled):
+        """更新自动保存配置"""
+        try:
+            if port_name not in self.serial_ports:
+                return False
+            
+            # 更新配置
+            if port_name in self.auto_save_config:
+                self.auto_save_config[port_name]['enabled'] = auto_save_enabled
+            else:
+                # 如果配置不存在，创建新的配置
+                baudrate = self.serial_ports[port_name].baudrate
+                self.auto_save_config[port_name] = {
+                    'enabled': auto_save_enabled,
+                    'baudrate': baudrate
+                }
+            
+            # 如果启用自动保存且当前没有在保存，开始保存
+            if auto_save_enabled and not self.data_saver.is_saving(port_name):
+                baudrate = self.auto_save_config[port_name]['baudrate']
+                self.data_saver.start_saving(port_name, baudrate)
+            elif not auto_save_enabled and self.data_saver.is_saving(port_name):
+                # 如果禁用自动保存且当前在保存，停止保存
+                self.data_saver.stop_saving(port_name)
+            
+            return True
+            
+        except Exception as e:
+            self.error_occurred.emit(port_name, f"更新自动保存配置失败: {str(e)}")
+            return False 
+
+    def update_global_settings(self, settings):
+        """更新全局设置"""
+        try:
+            if 'auto_save_serial' in settings:
+                self.global_settings['auto_save_serial'] = settings['auto_save_serial']
+            
+            if 'file_size_limit' in settings:
+                self.global_settings['file_size_limit'] = settings['file_size_limit']
+                # 更新数据保存器的文件大小限制
+                self.data_saver.update_max_file_size(settings['file_size_limit'])
+            
+            return True
+        except Exception as e:
+            self.error_occurred.emit("", f"更新全局设置失败: {str(e)}")
+            return False 

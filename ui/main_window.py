@@ -117,7 +117,7 @@ class RightSideMenu(QWidget):
         self.add_btn.hide()  # 默认隐藏
         
         # 设置按钮
-        self.settings_btn = QPushButton("⚙")
+        self.settings_btn = QPushButton("📁")
         self.settings_btn.setFixedSize(32, 32)
         self.settings_btn.setStyleSheet("""
             QPushButton {
@@ -219,7 +219,7 @@ class RightSideMenu(QWidget):
                 self.settings_btn.show()
                 # 连接config页面的信号到标题栏按钮
                 self.add_btn.clicked.connect(self.pages[page_name].show_connection_dialog)
-                self.settings_btn.clicked.connect(self.pages[page_name].show_settings)
+                self.settings_btn.clicked.connect(self.open_serial_logs_folder)
             else:
                 self.add_btn.hide()
                 self.settings_btn.hide()
@@ -246,6 +246,40 @@ class RightSideMenu(QWidget):
     def get_page(self, page_name):
         """获取指定页面"""
         return self.pages.get(page_name)
+    
+    def open_serial_logs_folder(self):
+        """打开serial_logs文件夹"""
+        import os
+        import subprocess
+        import platform
+        
+        try:
+            # 获取软件根目录（main.py所在目录）
+            current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            # 构建serial_logs文件夹路径
+            serial_logs_dir = os.path.join(current_dir, 'serial_logs')
+            
+            # 如果文件夹不存在，创建它
+            if not os.path.exists(serial_logs_dir):
+                os.makedirs(serial_logs_dir)
+                print(f"已创建serial_logs文件夹: {serial_logs_dir}")
+            
+            # 根据操作系统打开文件夹
+            if platform.system() == "Windows":
+                # 在Windows中，使用os.startfile来打开文件夹
+                os.startfile(serial_logs_dir)
+            elif platform.system() == "Darwin":  # macOS
+                subprocess.run(['open', serial_logs_dir], check=True)
+            else:  # Linux
+                subprocess.run(['xdg-open', serial_logs_dir], check=True)
+                
+            print(f"已打开serial_logs文件夹: {serial_logs_dir}")
+            
+        except Exception as e:
+            print(f"打开serial_logs文件夹失败: {str(e)}")
+            # 可以在这里添加错误提示对话框
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "错误", f"打开serial_logs文件夹失败: {str(e)}")
 
 
 class MainWindow(QMainWindow):
@@ -610,5 +644,29 @@ class MainWindow(QMainWindow):
         return self.main_data_page.get_auto_send_interval()
     
     def is_hex_display(self):
-        """是否十六进制显示"""
-        return self.main_data_page.is_hex_display()
+        """获取是否十六进制显示"""
+        return self.right_menu.pages['data'].is_hex_display()
+    
+    def closeEvent(self, event):
+        """窗口关闭事件"""
+        try:
+            # 关闭所有子窗口
+            for page in self.right_menu.pages.values():
+                if hasattr(page, 'received_windows'):
+                    for window in page.received_windows.values():
+                        if window.isVisible():
+                            window.close()
+                if hasattr(page, 'send_windows'):
+                    for window in page.send_windows.values():
+                        if window.isVisible():
+                            window.close()
+            
+            # 隐藏右侧菜单
+            if self.right_menu.isVisible():
+                self.right_menu.hide()
+            
+            # 接受关闭事件
+            event.accept()
+        except Exception as e:
+            print(f"窗口关闭时发生错误: {str(e)}")
+            event.accept()
