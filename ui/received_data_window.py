@@ -213,17 +213,13 @@ class ReceivedDataWindow(QMainWindow):
         """添加接收数据（优化版本，减少闪烁）"""
         if self.is_disconnected:
             # 如果已断开连接，不处理新数据
-            print(f"窗口 {self.port_name} 已断开连接，忽略数据")
             return
             
         # 只有在窗口打开时才处理数据
         if not self.is_window_open:
             # 窗口未打开时，不处理数据
-            print(f"窗口 {self.port_name} 未打开，忽略数据")
             return
             
-        print(f"窗口 {self.port_name} 接收到数据: {len(data)} 字节")
-        
         if self.is_paused:
             # 如果暂停，将数据存储到暂停缓冲区，但不更新显示
             self.pause_buffer.append(data)
@@ -255,8 +251,6 @@ class ReceivedDataWindow(QMainWindow):
             
             # 标记有待更新的数据
             self.pending_update = True
-            
-            print(f"窗口 {self.port_name} 添加了 {len(new_lines)} 行数据，当前缓冲区: {len(self.display_lines)} 行")
         
         self.receive_count += len(data.encode('utf-8'))
         self.receive_count_label.setText(f"接收字节数: {self.receive_count}")
@@ -264,7 +258,6 @@ class ReceivedDataWindow(QMainWindow):
     def _perform_update(self):
         """执行定时更新显示"""
         if self.pending_update and not self.is_paused:
-            print(f"窗口 {self.port_name} 执行更新显示")
             self._update_display()
             self.pending_update = False
     
@@ -593,9 +586,6 @@ class ReceivedDataWindow(QMainWindow):
         
         # 确保缓冲区状态显示正确
         self._update_buffer_status()
-        
-        # 打印调试信息
-        print(f"窗口 {self.port_name} 已打开，is_window_open = {self.is_window_open}")
         
         event.accept()
     
