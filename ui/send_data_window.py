@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QTextEdit, QPushButton, QLabel, QLineEdit, QCheckBox,
-                             QSpinBox, QFrame, QGroupBox, QMessageBox, QGridLayout, QComboBox)
+                             QSpinBox, QFrame, QGroupBox, QMessageBox, QGridLayout, QComboBox,
+                             QScrollArea)
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QTextCursor
 
@@ -254,6 +255,13 @@ class SendDataWindow(QMainWindow):
         """)
         fields_grid.addWidget(payload_label, 4, 0)
         
+        # 创建有效载荷输入区域
+        payload_widget = QWidget()
+        payload_layout = QVBoxLayout(payload_widget)
+        payload_layout.setContentsMargins(0, 0, 0, 0)
+        payload_layout.setSpacing(5)
+        
+        # 默认的有效载荷输入（文本编辑框）
         self.payload_input = QTextEdit()
         self.payload_input.setPlaceholderText("输入十六进制数据，如: 01 02 03 04\n注意: 长度必须是4的倍数")
         self.payload_input.setStyleSheet("""
@@ -272,7 +280,380 @@ class SendDataWindow(QMainWindow):
         """)
         self.payload_input.setMaximumHeight(100)
         self.payload_input.textChanged.connect(self.update_packet_preview)
-        fields_grid.addWidget(self.payload_input, 4, 1)
+        payload_layout.addWidget(self.payload_input)
+        
+        # NAV2-DOP消息的专用输入框
+        self.nav2_dop_widget = QWidget()
+        nav2_dop_layout = QVBoxLayout(self.nav2_dop_widget)
+        nav2_dop_layout.setContentsMargins(0, 0, 0, 0)
+        nav2_dop_layout.setSpacing(5)
+        
+        # NAV2-DOP标题
+        nav2_dop_title = QLabel("NAV2-DOP 消息有效载荷 (定位精度因子):")
+        nav2_dop_title.setStyleSheet("""
+            QLabel {
+                font-size: 12px;
+                font-weight: bold;
+                color: #333333;
+                background-color: #e3f2fd;
+                border: 1px solid #bbdefb;
+                border-radius: 4px;
+                padding: 5px;
+            }
+        """)
+        nav2_dop_layout.addWidget(nav2_dop_title)
+        
+        # NAV2-DOP字段网格
+        nav2_dop_grid = QGridLayout()
+        nav2_dop_grid.setSpacing(8)
+        
+        # 字段1: pDop (位置 DOP)
+        pDop_label = QLabel("pDop (位置 DOP):")
+        pDop_label.setStyleSheet("""
+            QLabel {
+                font-size: 11px;
+                color: #333333;
+                background-color: transparent;
+                border: none;
+            }
+        """)
+        nav2_dop_grid.addWidget(pDop_label, 0, 0)
+        
+        self.pDop_input = QLineEdit()
+        self.pDop_input.setPlaceholderText("输入16进制数，留空默认为0")
+        self.pDop_input.setMaxLength(8)  # 限制最大长度为8位
+        self.pDop_input.setStyleSheet("""
+            QLineEdit {
+                border: 1px solid #d0d0d0;
+                border-radius: 4px;
+                padding: 6px;
+                background-color: white;
+                font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                font-size: 11px;
+                color: #333333;
+                min-width: 120px;
+            }
+            QLineEdit:focus {
+                border: 2px solid #2196F3;
+            }
+        """)
+        self.pDop_input.textChanged.connect(self.on_nav2_dop_changed)
+        self.pDop_input.textChanged.connect(self.validate_hex_input)
+        self.pDop_input.editingFinished.connect(self.auto_pad_hex_input)
+        nav2_dop_grid.addWidget(self.pDop_input, 0, 1)
+        
+        # 字段2: hDop (水平 DOP)
+        hDop_label = QLabel("hDop (水平 DOP):")
+        hDop_label.setStyleSheet("""
+            QLabel {
+                font-size: 11px;
+                color: #333333;
+                background-color: transparent;
+                border: none;
+            }
+        """)
+        nav2_dop_grid.addWidget(hDop_label, 1, 0)
+        
+        self.hDop_input = QLineEdit()
+        self.hDop_input.setPlaceholderText("输入16进制数，留空默认为0")
+        self.hDop_input.setMaxLength(8)  # 限制最大长度为8位
+        self.hDop_input.setStyleSheet("""
+            QLineEdit {
+                border: 1px solid #d0d0d0;
+                border-radius: 4px;
+                padding: 6px;
+                background-color: white;
+                font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                font-size: 11px;
+                color: #333333;
+                min-width: 120px;
+            }
+            QLineEdit:focus {
+                border: 2px solid #2196F3;
+            }
+        """)
+        self.hDop_input.textChanged.connect(self.on_nav2_dop_changed)
+        self.hDop_input.textChanged.connect(self.validate_hex_input)
+        self.hDop_input.editingFinished.connect(self.auto_pad_hex_input)
+        nav2_dop_grid.addWidget(self.hDop_input, 1, 1)
+        
+        # 字段3: vDop (垂直 DOP)
+        vDop_label = QLabel("vDop (垂直 DOP):")
+        vDop_label.setStyleSheet("""
+            QLabel {
+                font-size: 11px;
+                color: #333333;
+                background-color: transparent;
+                border: none;
+            }
+        """)
+        nav2_dop_grid.addWidget(vDop_label, 2, 0)
+        
+        self.vDop_input = QLineEdit()
+        self.vDop_input.setPlaceholderText("输入16进制数，留空默认为0")
+        self.vDop_input.setMaxLength(8)  # 限制最大长度为8位
+        self.vDop_input.setStyleSheet("""
+            QLineEdit {
+                border: 1px solid #d0d0d0;
+                border-radius: 4px;
+                padding: 6px;
+                background-color: white;
+                font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                font-size: 11px;
+                color: #333333;
+                min-width: 120px;
+            }
+            QLineEdit:focus {
+                border: 2px solid #2196F3;
+            }
+        """)
+        self.vDop_input.textChanged.connect(self.on_nav2_dop_changed)
+        self.vDop_input.textChanged.connect(self.validate_hex_input)
+        self.vDop_input.editingFinished.connect(self.auto_pad_hex_input)
+        nav2_dop_grid.addWidget(self.vDop_input, 2, 1)
+        
+        # 字段4: nDop (北向 DOP)
+        nDop_label = QLabel("nDop (北向 DOP):")
+        nDop_label.setStyleSheet("""
+            QLabel {
+                font-size: 11px;
+                color: #333333;
+                background-color: transparent;
+                border: none;
+            }
+        """)
+        nav2_dop_grid.addWidget(nDop_label, 3, 0)
+        
+        self.nDop_input = QLineEdit()
+        self.nDop_input.setPlaceholderText("输入16进制数，留空默认为0")
+        self.nDop_input.setMaxLength(8)  # 限制最大长度为8位
+        self.nDop_input.setStyleSheet("""
+            QLineEdit {
+                border: 1px solid #d0d0d0;
+                border-radius: 4px;
+                padding: 6px;
+                background-color: white;
+                font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                font-size: 11px;
+                color: #333333;
+                min-width: 120px;
+            }
+            QLineEdit:focus {
+                border: 2px solid #2196F3;
+            }
+        """)
+        self.nDop_input.textChanged.connect(self.on_nav2_dop_changed)
+        self.nDop_input.textChanged.connect(self.validate_hex_input)
+        self.nDop_input.editingFinished.connect(self.auto_pad_hex_input)
+        nav2_dop_grid.addWidget(self.nDop_input, 3, 1)
+        
+        # 字段5: eDop (东向 DOP)
+        eDop_label = QLabel("eDop (东向 DOP):")
+        eDop_label.setStyleSheet("""
+            QLabel {
+                font-size: 11px;
+                color: #333333;
+                background-color: transparent;
+                border: none;
+            }
+        """)
+        nav2_dop_grid.addWidget(eDop_label, 4, 0)
+        
+        self.eDop_input = QLineEdit()
+        self.eDop_input.setPlaceholderText("输入16进制数，留空默认为0")
+        self.eDop_input.setMaxLength(8)  # 限制最大长度为8位
+        self.eDop_input.setStyleSheet("""
+            QLineEdit {
+                border: 1px solid #d0d0d0;
+                border-radius: 4px;
+                padding: 6px;
+                background-color: white;
+                font-family: 'Consolas', 'Courier New', monospace;
+                font-size: 11px;
+                color: #333333;
+                min-width: 120px;
+            }
+            QLineEdit:focus {
+                border: 2px solid #2196F3;
+            }
+        """)
+        self.eDop_input.textChanged.connect(self.on_nav2_dop_changed)
+        self.eDop_input.textChanged.connect(self.validate_hex_input)
+        self.eDop_input.editingFinished.connect(self.auto_pad_hex_input)
+        nav2_dop_grid.addWidget(self.eDop_input, 4, 1)
+        
+        # 字段6: tDop (时间 DOP)
+        tDop_label = QLabel("tDop (时间 DOP):")
+        tDop_label.setStyleSheet("""
+            QLabel {
+                font-size: 11px;
+                color: #333333;
+                background-color: transparent;
+                border: none;
+            }
+        """)
+        nav2_dop_grid.addWidget(tDop_label, 5, 0)
+        
+        self.tDop_input = QLineEdit()
+        self.tDop_input.setPlaceholderText("输入16进制数，留空默认为0")
+        self.tDop_input.setMaxLength(8)  # 限制最大长度为8位
+        self.tDop_input.setStyleSheet("""
+            QLineEdit {
+                border: 1px solid #d0d0d0;
+                border-radius: 4px;
+                padding: 6px;
+                background-color: white;
+                font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                font-size: 11px;
+                color: #333333;
+                min-width: 120px;
+            }
+            QLineEdit:focus {
+                border: 2px solid #2196F3;
+            }
+        """)
+        self.tDop_input.textChanged.connect(self.on_nav2_dop_changed)
+        self.tDop_input.textChanged.connect(self.validate_hex_input)
+        self.tDop_input.editingFinished.connect(self.auto_pad_hex_input)
+        nav2_dop_grid.addWidget(self.tDop_input, 5, 1)
+        
+        nav2_dop_layout.addLayout(nav2_dop_grid)
+        
+        # NAV2-SOL消息的专用输入框
+        self.nav2_sol_widget = QWidget()
+        nav2_sol_layout = QVBoxLayout(self.nav2_sol_widget)
+        nav2_sol_layout.setContentsMargins(0, 0, 0, 0)
+        nav2_sol_layout.setSpacing(5)
+        
+        # NAV2-SOL标题
+        nav2_sol_title = QLabel("NAV2-SOL 消息有效载荷 (ECEF坐标系下的PVT导航信息):")
+        nav2_sol_title.setStyleSheet("""
+            QLabel {
+                font-size: 12px;
+                font-weight: bold;
+                color: #333333;
+                background-color: #e8f5e8;
+                border: 1px solid #c8e6c9;
+                border-radius: 4px;
+                padding: 5px;
+            }
+        """)
+        nav2_sol_layout.addWidget(nav2_sol_title)
+        
+        # 创建滚动区域来容纳所有字段
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setMaximumHeight(300)  # 限制最大高度
+        scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: 1px solid #d0d0d0;
+                border-radius: 4px;
+                background-color: white;
+            }
+        """)
+        
+        # 创建滚动区域的内容部件
+        scroll_content = QWidget()
+        nav2_sol_grid = QGridLayout(scroll_content)
+        nav2_sol_grid.setSpacing(6)
+        nav2_sol_grid.setContentsMargins(10, 10, 10, 10)
+        
+        # 定义NAV2-SOL字段信息
+        nav2_sol_fields = [
+            # 偏移, 数据类型, 最大长度, 名称, 单位, 描述
+            (0, "I4", 8, "tow", "ms", "GPS时间, 周内时"),
+            (4, "U2", 4, "wn", "-", "GPS时间, 周数"),
+            (6, "U2", 4, "res1", "-", "保留"),
+            (8, "U1", 2, "fixflags", "-", "位置有效标志"),
+            (9, "U1", 2, "velflags", "-", "速度有效标志"),
+            (10, "U1", 2, "res2", "-", "保留"),
+            (11, "U1", 2, "fixGnssMask", "-", "参与定位的卫星系统掩码"),
+            (12, "U1", 2, "numFixtot", "-", "参与解算的卫星总数"),
+            (13, "U1", 2, "numFixGps", "-", "参与解算的GPS卫星数目"),
+            (14, "U1", 2, "numFixBds", "-", "参与解算的BDS卫星数目"),
+            (15, "U1", 2, "numFixGln", "-", "参与解算的GLONASS卫星数目"),
+            (16, "U1", 2, "numFixGal", "-", "参与解算的GALILEO卫星数目"),
+            (17, "U1", 2, "numFixQzs", "-", "参与解算的QZSS卫星数目"),
+            (18, "U1", 2, "numFixSbs", "-", "参与解算的SBAS卫星数目"),
+            (19, "U1", 2, "numFixIrn", "-", "参与解算的IRNSS卫星数目"),
+            (20, "U4", 8, "res3", "-", "保留"),
+            (24, "R8", 16, "x", "m", "ECEF坐标系中的X坐标"),
+            (32, "R8", 16, "y", "m", "ECEF坐标系中的Y坐标"),
+            (40, "R8", 16, "z", "m", "ECEF坐标系中的Z坐标"),
+            (48, "R4", 8, "pAcc", "m", "3D位置的估计精度误差"),
+            (52, "R4", 8, "vx", "m/s", "ECEF坐标系中的X速度"),
+            (56, "R4", 8, "vy", "m/s", "ECEF坐标系中的Y速度"),
+            (60, "R4", 8, "vz", "m/s", "ECEF坐标系中的Z速度"),
+            (64, "R4", 8, "sAcc", "m/s", "3D速度的估计精度误差"),
+            (68, "R4", 8, "pDop", "-", "位置DOP")
+        ]
+        
+        # 创建输入框字典
+        self.nav2_sol_inputs = {}
+        
+        # 创建所有字段的输入框
+        for i, (offset, data_type, max_length, name, unit, description) in enumerate(nav2_sol_fields):
+            row = i // 2  # 每行2个字段
+            col = (i % 2) * 2  # 每2列为一组
+            
+            # 字段标签
+            label_text = f"{name} ({description}):"
+            label = QLabel(label_text)
+            label.setStyleSheet("""
+                QLabel {
+                    font-size: 10px;
+                    color: #333333;
+                    background-color: transparent;
+                    border: none;
+                }
+            """)
+            label.setWordWrap(True)
+            nav2_sol_grid.addWidget(label, row, col)
+            
+            # 输入框
+            input_field = QLineEdit()
+            input_field.setPlaceholderText(f"输入{max_length}位16进制数，留空默认为0")
+            input_field.setMaxLength(max_length)
+            input_field.setStyleSheet("""
+                QLineEdit {
+                    border: 1px solid #d0d0d0;
+                    border-radius: 4px;
+                    padding: 4px;
+                    background-color: white;
+                    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                    font-size: 10px;
+                    color: #333333;
+                    min-width: 100px;
+                }
+                QLineEdit:focus {
+                    border: 2px solid #2196F3;
+                }
+            """)
+            
+            # 连接信号
+            input_field.textChanged.connect(self.on_nav2_sol_changed)
+            input_field.textChanged.connect(self.validate_hex_input)
+            input_field.editingFinished.connect(self.auto_pad_hex_input)
+            
+            nav2_sol_grid.addWidget(input_field, row, col + 1)
+            
+            # 存储输入框引用
+            self.nav2_sol_inputs[name] = input_field
+        
+        # 设置滚动区域的内容
+        scroll_area.setWidget(scroll_content)
+        nav2_sol_layout.addWidget(scroll_area)
+        
+        # 初始时隐藏两个专用输入框
+        self.nav2_dop_widget.hide()
+        self.nav2_sol_widget.hide()
+        
+        # 将两个输入方式添加到有效载荷布局中
+        payload_layout.addWidget(self.payload_input)
+        payload_layout.addWidget(self.nav2_dop_widget)
+        payload_layout.addWidget(self.nav2_sol_widget)
+        
+        fields_grid.addWidget(payload_widget, 4, 1)
         
         # 字段6: 校验值 (自动计算)
         checksum_label = QLabel("校验值 (4字节):")
@@ -600,6 +981,18 @@ class SendDataWindow(QMainWindow):
         self.class_combo.setCurrentText("0x11 - NAV2 (导航结果:位置、速度、时间)")
         self.payload_input.clear()
         
+        # 清空NAV2-DOP输入框
+        self.pDop_input.clear()
+        self.hDop_input.clear()
+        self.vDop_input.clear()
+        self.nDop_input.clear()
+        self.eDop_input.clear()
+        self.tDop_input.clear()
+        
+        # 清空NAV2-SOL输入框
+        for input_field in self.nav2_sol_inputs.values():
+            input_field.clear()
+        
         # 重新设置消息ID选项
         self.on_class_changed()
         
@@ -626,24 +1019,63 @@ class SendDataWindow(QMainWindow):
             # 解析用户输入（使用静默模式）
             class_value = self.parse_hex_byte(self.class_combo.currentText().split(' - ')[0], silent)
             id_value = self.parse_hex_byte(self.id_combo.currentText().split(' - ')[0], silent)
-            payload_text = self.payload_input.toPlainText().strip()
             
-            if class_value is None or id_value is None:
-                return None
-            
-            # 处理空有效载荷的情况
-            if not payload_text:
-                payload_data = []
+            # 根据消息类和消息ID设置有效载荷输入框的可见性
+            if class_value == 0x11 and id_value == 0x01: # NAV2-DOP
+                self.nav2_dop_widget.show()
+                self.nav2_sol_widget.hide()
+                self.payload_input.hide() # 隐藏默认的payload输入框
+            elif class_value == 0x11 and id_value == 0x02: # NAV2-SOL
+                self.nav2_dop_widget.hide()
+                self.nav2_sol_widget.show()
+                self.payload_input.hide() # 隐藏默认的payload输入框
             else:
-                payload_data = self.parse_hex_payload(payload_text, silent)
+                self.nav2_dop_widget.hide()
+                self.nav2_sol_widget.hide()
+                self.payload_input.show() # 显示默认的payload输入框
+
+            # 获取有效载荷数据
+            if self.nav2_dop_widget.isVisible():
+                # NAV2-DOP消息：每个字段4字节，总共6个字段
+                nav2_dop_fields = [
+                    self.pDop_input.text().strip(),
+                    self.hDop_input.text().strip(),
+                    self.vDop_input.text().strip(),
+                    self.nDop_input.text().strip(),
+                    self.eDop_input.text().strip(),
+                    self.tDop_input.text().strip()
+                ]
+                
+                # 解析每个字段的16进制值并转换为4字节
+                # 空字段会自动处理为全0
+                payload_data = []
+                for field in nav2_dop_fields:
+                    field_bytes = self.parse_nav2_dop_field(field, silent)
+                    if field_bytes is None:
+                        return None
+                    payload_data.extend(field_bytes)
+            elif self.nav2_sol_widget.isVisible():
+                # NAV2-SOL消息：根据字段类型解析
+                payload_data = self.parse_nav2_sol_payload(silent)
                 if payload_data is None:
                     return None
+            else:
+                payload_text = self.payload_input.toPlainText().strip()
+                if not payload_text:
+                    self.length_input.setText("0 字节 (0x0000)")
+                    self.checksum_input.setText(f"0x{(id_value << 24) + (class_value << 16):08X}")
+                    self.preview_text.setPlainText("请输入有效载荷数据")
+                    return
+                
+                payload_data = self.parse_hex_payload(payload_text, silent)
+                if payload_data is None:
+                    return
                 
                 # 检查有效载荷长度是否为4的倍数
                 if len(payload_data) % 4 != 0:
                     if not silent:
                         QMessageBox.warning(self, "警告", "有效载荷长度必须是4的倍数")
-                    return None
+                    return
             
             # 计算有效载荷长度（字节数）
             payload_length = len(payload_data)
@@ -737,6 +1169,88 @@ class SendDataWindow(QMainWindow):
                 QMessageBox.warning(self, "警告", "请输入有效的十六进制有效载荷")
             return None
     
+    def parse_nav2_dop_field(self, text, silent=False):
+        """解析NAV2-DOP字段的16进制输入，转换为4字节数据"""
+        try:
+            # 清理输入文本
+            text = text.strip()
+            
+            # 如果为空，默认为全0
+            if not text:
+                return [0x00, 0x00, 0x00, 0x00]
+            
+            # 移除0x前缀
+            if text.startswith('0x') or text.startswith('0X'):
+                text = text[2:]
+            
+            # 检查长度是否超过8位
+            if len(text) > 8:
+                if not silent:
+                    QMessageBox.warning(self, "警告", f"字段 {text} 不能超过8位16进制数")
+                return None
+            
+            # 在封装时自动补零到8位（不在输入框内显示）
+            text = text.zfill(8)
+            
+            # 解析为32位整数
+            value = int(text, 16)
+            
+            # 转换为4字节（小端序）
+            bytes_data = [
+                value & 0xFF,           # 最低字节
+                (value >> 8) & 0xFF,   # 第二字节
+                (value >> 16) & 0xFF,  # 第三字节
+                (value >> 24) & 0xFF   # 最高字节
+            ]
+            
+            return bytes_data
+            
+        except ValueError:
+            if not silent:
+                QMessageBox.warning(self, "警告", f"字段 {text} 不是有效的16进制数")
+            return None
+    
+    def parse_nav2_sol_field(self, text, silent=False):
+        """解析NAV2-SOL字段的16进制输入，转换为4字节数据"""
+        try:
+            # 清理输入文本
+            text = text.strip()
+            
+            # 如果为空，默认为全0
+            if not text:
+                return [0x00, 0x00, 0x00, 0x00]
+            
+            # 移除0x前缀
+            if text.startswith('0x') or text.startswith('0X'):
+                text = text[2:]
+            
+            # 检查长度是否超过8位
+            if len(text) > 8:
+                if not silent:
+                    QMessageBox.warning(self, "警告", f"字段 {text} 不能超过8位16进制数")
+                return None
+            
+            # 在封装时自动补零到8位（不在输入框内显示）
+            text = text.zfill(8)
+            
+            # 解析为32位整数
+            value = int(text, 16)
+            
+            # 转换为4字节（小端序）
+            bytes_data = [
+                value & 0xFF,           # 最低字节
+                (value >> 8) & 0xFF,   # 第二字节
+                (value >> 16) & 0xFF,  # 第三字节
+                (value >> 24) & 0xFF   # 最高字节
+            ]
+            
+            return bytes_data
+            
+        except ValueError:
+            if not silent:
+                QMessageBox.warning(self, "警告", f"字段 {text} 不是有效的16进制数")
+            return None
+    
     def calculate_checksum(self, class_value, id_value, payload_length, payload_data):
         """计算校验值"""
         # 按照算法: ckSum = (id << 24) + (class << 16) + len
@@ -776,19 +1290,62 @@ class SendDataWindow(QMainWindow):
             if class_value is None or id_value is None:
                 return
                 
-            payload_text = self.payload_input.toPlainText().strip()
-            
-            # 如果没有有效载荷，显示基本信息
-            if not payload_text:
-                self.length_input.setText("0 字节 (0x0000)")
-                self.checksum_input.setText(f"0x{(id_value << 24) + (class_value << 16):08X}")
-                self.preview_text.setPlainText("请输入有效载荷数据")
-                return
-            
-            # 解析有效载荷（使用静默模式）
-            payload_data = self.parse_hex_payload(payload_text, silent)
-            if payload_data is None:
-                return
+            # 根据消息类和消息ID设置有效载荷输入框的可见性
+            if class_value == 0x11 and id_value == 0x01: # NAV2-DOP
+                self.nav2_dop_widget.show()
+                self.nav2_sol_widget.hide()
+                self.payload_input.hide() # 隐藏默认的payload输入框
+            elif class_value == 0x11 and id_value == 0x02: # NAV2-SOL
+                self.nav2_dop_widget.hide()
+                self.nav2_sol_widget.show()
+                self.payload_input.hide() # 隐藏默认的payload输入框
+            else:
+                self.nav2_dop_widget.hide()
+                self.nav2_sol_widget.hide()
+                self.payload_input.show() # 显示默认的payload输入框
+
+            # 获取有效载荷数据
+            if self.nav2_dop_widget.isVisible():
+                # NAV2-DOP消息：每个字段4字节，总共6个字段
+                nav2_dop_fields = [
+                    self.pDop_input.text().strip(),
+                    self.hDop_input.text().strip(),
+                    self.vDop_input.text().strip(),
+                    self.nDop_input.text().strip(),
+                    self.eDop_input.text().strip(),
+                    self.tDop_input.text().strip()
+                ]
+                
+                # 解析每个字段的16进制值并转换为4字节
+                # 空字段会自动处理为全0
+                payload_data = []
+                for field in nav2_dop_fields:
+                    field_bytes = self.parse_nav2_dop_field(field, silent)
+                    if field_bytes is None:
+                        return None
+                    payload_data.extend(field_bytes)
+            elif self.nav2_sol_widget.isVisible():
+                # NAV2-SOL消息：根据字段类型解析
+                payload_data = self.parse_nav2_sol_payload(silent)
+                if payload_data is None:
+                    return None
+            else:
+                payload_text = self.payload_input.toPlainText().strip()
+                if not payload_text:
+                    self.length_input.setText("0 字节 (0x0000)")
+                    self.checksum_input.setText(f"0x{(id_value << 24) + (class_value << 16):08X}")
+                    self.preview_text.setPlainText("请输入有效载荷数据")
+                    return
+                
+                payload_data = self.parse_hex_payload(payload_text, silent)
+                if payload_data is None:
+                    return
+                
+                # 检查有效载荷长度是否为4的倍数
+                if len(payload_data) % 4 != 0:
+                    if not silent:
+                        QMessageBox.warning(self, "警告", "有效载荷长度必须是4的倍数")
+                    return
             
             # 构建完整数据包
             packet_data = self.build_csip_packet(silent)
@@ -825,6 +1382,9 @@ class SendDataWindow(QMainWindow):
             ])
             self.id_combo.setCurrentText("0x01 - 几何精度因子 (Geometric Dilution of Precision)")
             
+            # 当选择NAV2消息类时，检查是否为DOP或SOL消息
+            self.check_nav2_dop_visibility()
+            
         elif "TIM2" in selected_class:
             self.id_combo.clear()
             self.id_combo.addItems([
@@ -841,6 +1401,10 @@ class SendDataWindow(QMainWindow):
             ])
             self.id_combo.setCurrentText("0x00 - 授时脉冲信息 (Timing pulse information)")
             
+            # 隐藏NAV2-DOP专用输入框
+            self.nav2_dop_widget.hide()
+            self.payload_input.show()
+            
         elif "RXM2" in selected_class:
             self.id_combo.clear()
             self.id_combo.addItems([
@@ -851,6 +1415,10 @@ class SendDataWindow(QMainWindow):
             ])
             self.id_combo.setCurrentText("0x00 - 伪距、载波相位原始测量信息 (Pseudorange, carrier phase raw measurement information)")
             
+            # 隐藏NAV2-DOP专用输入框
+            self.nav2_dop_widget.hide()
+            self.payload_input.show()
+            
         elif "ACK" in selected_class:
             self.id_combo.clear()
             self.id_combo.addItems([
@@ -858,6 +1426,10 @@ class SendDataWindow(QMainWindow):
                 "0x01 - 回复表示消息被正确接收 (Reply indicating message correctly received)"
             ])
             self.id_combo.setCurrentText("0x01 - 回复表示消息被正确接收 (Reply indicating message correctly received)")
+            
+            # 隐藏NAV2-DOP专用输入框
+            self.nav2_dop_widget.hide()
+            self.payload_input.show()
             
         elif "CFG" in selected_class:
             self.id_combo.clear()
@@ -885,6 +1457,10 @@ class SendDataWindow(QMainWindow):
             ])
             self.id_combo.setCurrentText("0x00 - CFG-PRT (查询/配置 UART 的工作模式 - Query/Configure UART working mode)")
             
+            # 隐藏NAV2-DOP专用输入框
+            self.nav2_dop_widget.hide()
+            self.payload_input.show()
+            
         elif "MSG" in selected_class:
             self.id_combo.clear()
             self.id_combo.addItems([
@@ -907,6 +1483,10 @@ class SendDataWindow(QMainWindow):
             ])
             self.id_combo.setCurrentText("0x00 - MSG-BDSUTC (BDS 系统 UTC 信息 - BDS system UTC information)")
             
+            # 隐藏NAV2-DOP专用输入框
+            self.nav2_dop_widget.hide()
+            self.payload_input.show()
+            
         elif "MON" in selected_class:
             self.id_combo.clear()
             self.id_combo.addItems([
@@ -923,12 +1503,20 @@ class SendDataWindow(QMainWindow):
             ])
             self.id_combo.setCurrentText("0x00 - MON-CWI (干扰信号输出 - Interference signal output)")
             
+            # 隐藏NAV2-DOP专用输入框
+            self.nav2_dop_widget.hide()
+            self.payload_input.show()
+            
         elif "AID" in selected_class:
             self.id_combo.clear()
             self.id_combo.addItems([
                 "0x01 - AID-INI (辅助位置、时间、频率、时钟频偏信息 - Auxiliary position, time, frequency, clock bias information)"
             ])
             self.id_combo.setCurrentText("0x01 - AID-INI (辅助位置、时间、频率、时钟频偏信息 - Auxiliary position, time, frequency, clock bias information)")
+            
+            # 隐藏NAV2-DOP专用输入框
+            self.nav2_dop_widget.hide()
+            self.payload_input.show()
             
         elif "INS2" in selected_class:
             self.id_combo.clear()
@@ -937,6 +1525,10 @@ class SendDataWindow(QMainWindow):
                 "0x01 - INS2-IMU (传感器信息 - Sensor information)"
             ])
             self.id_combo.setCurrentText("0x00 - INS2-ATT (IMU 坐标系相对于本地导航坐标系(NED)的姿态 - IMU coordinate system attitude relative to local navigation coordinate system (NED))")
+            
+            # 隐藏NAV2-DOP专用输入框
+            self.nav2_dop_widget.hide()
+            self.payload_input.show()
             
         elif "RTCM" in selected_class:
             self.id_combo.clear()
@@ -954,6 +1546,10 @@ class SendDataWindow(QMainWindow):
             ])
             self.id_combo.setCurrentText("0x00 - RTCM_1005 (RTK 基站信息, ARP 信息 - RTK Base Station Information, ARP Information)")
             
+            # 隐藏NAV2-DOP专用输入框
+            self.nav2_dop_widget.hide()
+            self.payload_input.show()
+            
         else:
             # 默认选项
             self.id_combo.clear()
@@ -961,6 +1557,307 @@ class SendDataWindow(QMainWindow):
                 "0x01 - 默认消息ID (Default Message ID)"
             ])
             self.id_combo.setCurrentText("0x01 - 默认消息ID (Default Message ID)")
+            
+            # 隐藏NAV2-DOP专用输入框
+            self.nav2_dop_widget.hide()
+            self.payload_input.show()
         
         # 重新连接信号
-        self.id_combo.currentTextChanged.connect(self.update_packet_preview) 
+        self.id_combo.currentTextChanged.connect(self.update_packet_preview)
+        
+        # 检查是否需要显示NAV2-DOP专用输入框
+        self.check_nav2_dop_visibility()
+    
+    def check_nav2_dop_visibility(self):
+        """检查是否需要显示NAV2专用输入框"""
+        try:
+            class_value = self.parse_hex_byte(self.class_combo.currentText().split(' - ')[0], silent=True)
+            id_value = self.parse_hex_byte(self.id_combo.currentText().split(' - ')[0], silent=True)
+            
+            if class_value == 0x11:  # NAV2消息类
+                if id_value == 0x01:  # NAV2-DOP
+                    self.nav2_dop_widget.show()
+                    self.nav2_sol_widget.hide()
+                    self.payload_input.hide()
+                elif id_value == 0x02:  # NAV2-SOL
+                    self.nav2_dop_widget.hide()
+                    self.nav2_sol_widget.show()
+                    self.payload_input.hide()
+                else:
+                    # 其他NAV2消息ID
+                    self.nav2_dop_widget.hide()
+                    self.nav2_sol_widget.hide()
+                    self.payload_input.show()
+            else:
+                # 非NAV2消息类
+                self.nav2_dop_widget.hide()
+                self.nav2_sol_widget.hide()
+                self.payload_input.show()
+        except:
+            # 如果解析失败，默认隐藏专用输入框
+            self.nav2_dop_widget.hide()
+            self.nav2_sol_widget.hide()
+            self.payload_input.show()
+    
+    def on_nav2_dop_changed(self):
+        """当NAV2-DOP消息的有效载荷输入框内容改变时，更新预览"""
+        self.update_packet_preview()
+    
+    def on_nav2_sol_changed(self):
+        """当NAV2-SOL消息的有效载荷输入框内容改变时，更新预览"""
+        self.update_packet_preview()
+
+    def validate_hex_input(self):
+        """验证输入框中的十六进制字符串，只允许有效字符"""
+        sender = self.sender()
+        if not sender:
+            return
+            
+        text = sender.text().strip()
+        
+        # 移除0x前缀
+        if text.startswith('0x') or text.startswith('0X'):
+            text = text[2:]
+        
+        # 如果为空，直接返回
+        if not text:
+            return
+        
+        # 只保留有效的十六进制字符
+        valid_text = ''.join(c for c in text if c in '0123456789ABCDEFabcdef')
+        
+        # 转换为大写
+        valid_text = valid_text.upper()
+        
+        # 限制最大长度为8位
+        if len(valid_text) > 8:
+            valid_text = valid_text[:8]
+        
+        # 如果内容有变化，更新输入框
+        if valid_text != text.upper():
+            sender.setText(valid_text)
+
+    def auto_pad_hex_input(self):
+        """在输入框失去焦点时进行最终验证"""
+        sender = self.sender()
+        if not sender:
+            return
+            
+        text = sender.text().strip()
+        
+        # 移除0x前缀
+        if text.startswith('0x') or text.startswith('0X'):
+            text = text[2:]
+            
+        # 如果为空，直接返回
+        if not text:
+            return
+            
+        # 检查是否只包含有效的十六进制字符
+        if not all(c in '0123456789ABCDEFabcdef' for c in text):
+            # 移除无效字符
+            valid_text = ''.join(c for c in text if c in '0123456789ABCDEFabcdef')
+            sender.setText(valid_text.upper())
+            return
+            
+        # 转换为大写
+        text = text.upper()
+        
+        # 限制最大长度为8位
+        if len(text) > 8:
+            text = text[:8]
+            
+        # 更新输入框内容（如果需要）
+        if text != sender.text().replace('0x', '').replace('0X', '').upper():
+            sender.setText(text)
+            
+        # 更新数据包预览
+        self.update_packet_preview() 
+
+    def parse_nav2_sol_payload(self, silent=False):
+        """解析NAV2-SOL消息的有效载荷"""
+        try:
+            # 定义NAV2-SOL字段信息
+            nav2_sol_fields = [
+                # 偏移, 数据类型, 最大长度, 名称, 单位, 描述
+                (0, "I4", 8, "tow", "ms", "GPS时间, 周内时"),
+                (4, "U2", 4, "wn", "-", "GPS时间, 周数"),
+                (6, "U2", 4, "res1", "-", "保留"),
+                (8, "U1", 2, "fixflags", "-", "位置有效标志"),
+                (9, "U1", 2, "velflags", "-", "速度有效标志"),
+                (10, "U1", 2, "res2", "-", "保留"),
+                (11, "U1", 2, "fixGnssMask", "-", "参与定位的卫星系统掩码"),
+                (12, "U1", 2, "numFixtot", "-", "参与解算的卫星总数"),
+                (13, "U1", 2, "numFixGps", "-", "参与解算的GPS卫星数目"),
+                (14, "U1", 2, "numFixBds", "-", "参与解算的BDS卫星数目"),
+                (15, "U1", 2, "numFixGln", "-", "参与解算的GLONASS卫星数目"),
+                (16, "U1", 2, "numFixGal", "-", "参与解算的GALILEO卫星数目"),
+                (17, "U1", 2, "numFixQzs", "-", "参与解算的QZSS卫星数目"),
+                (18, "U1", 2, "numFixSbs", "-", "参与解算的SBAS卫星数目"),
+                (19, "U1", 2, "numFixIrn", "-", "参与解算的IRNSS卫星数目"),
+                (20, "U4", 8, "res3", "-", "保留"),
+                (24, "R8", 16, "x", "m", "ECEF坐标系中的X坐标"),
+                (32, "R8", 16, "y", "m", "ECEF坐标系中的Y坐标"),
+                (40, "R8", 16, "z", "m", "ECEF坐标系中的Z坐标"),
+                (48, "R4", 8, "pAcc", "m", "3D位置的估计精度误差"),
+                (52, "R4", 8, "vx", "m/s", "ECEF坐标系中的X速度"),
+                (56, "R4", 8, "vy", "m/s", "ECEF坐标系中的Y速度"),
+                (60, "R4", 8, "vz", "m/s", "ECEF坐标系中的Z速度"),
+                (64, "R4", 8, "sAcc", "m/s", "3D速度的估计精度误差"),
+                (68, "R4", 8, "pDop", "-", "位置DOP")
+            ]
+            
+            payload_data = []
+            
+            for offset, data_type, max_length, name, unit, description in nav2_sol_fields:
+                # 获取输入框的值
+                if name in self.nav2_sol_inputs:
+                    field_text = self.nav2_sol_inputs[name].text().strip()
+                else:
+                    field_text = ""
+                
+                # 根据数据类型解析字段
+                if data_type == "I4":  # 4字节有符号整数
+                    field_bytes = self.parse_signed_int_field(field_text, 4, silent)
+                elif data_type == "U4":  # 4字节无符号整数
+                    field_bytes = self.parse_unsigned_int_field(field_text, 4, silent)
+                elif data_type == "U2":  # 2字节无符号整数
+                    field_bytes = self.parse_unsigned_int_field(field_text, 2, silent)
+                elif data_type == "U1":  # 1字节无符号整数
+                    field_bytes = self.parse_unsigned_int_field(field_text, 1, silent)
+                elif data_type == "R4":  # 4字节浮点数
+                    field_bytes = self.parse_float_field(field_text, 4, silent)
+                elif data_type == "R8":  # 8字节浮点数
+                    field_bytes = self.parse_float_field(field_text, 8, silent)
+                else:
+                    # 未知数据类型，使用默认值
+                    field_bytes = [0x00] * self.get_data_type_size(data_type)
+                
+                if field_bytes is None:
+                    return None
+                
+                payload_data.extend(field_bytes)
+            
+            return payload_data
+            
+        except Exception as e:
+            if not silent:
+                QMessageBox.warning(self, "警告", f"解析NAV2-SOL有效载荷失败: {str(e)}")
+            return None
+    
+    def get_data_type_size(self, data_type):
+        """获取数据类型的字节大小"""
+        size_map = {
+            "I4": 4,   # 4字节有符号整数
+            "U4": 4,   # 4字节无符号整数
+            "U2": 2,   # 2字节无符号整数
+            "U1": 1,   # 1字节无符号整数
+            "R4": 4,   # 4字节浮点数
+            "R8": 8    # 8字节浮点数
+        }
+        return size_map.get(data_type, 4)  # 默认4字节
+    
+    def parse_signed_int_field(self, text, size, silent=False):
+        """解析有符号整数字段"""
+        try:
+            if not text:
+                return [0x00] * size
+            
+            # 移除0x前缀
+            if text.startswith('0x') or text.startswith('0X'):
+                text = text[2:]
+            
+            # 检查长度
+            max_length = size * 2
+            if len(text) > max_length:
+                if not silent:
+                    QMessageBox.warning(self, "警告", f"字段长度不能超过{max_length}位")
+                return None
+            
+            # 补零到指定长度
+            text = text.zfill(max_length)
+            
+            # 解析为整数
+            value = int(text, 16)
+            
+            # 转换为字节数组（小端序）
+            bytes_data = []
+            for i in range(size):
+                bytes_data.append((value >> (i * 8)) & 0xFF)
+            
+            return bytes_data
+            
+        except ValueError:
+            if not silent:
+                QMessageBox.warning(self, "警告", f"字段 {text} 不是有效的16进制数")
+            return None
+    
+    def parse_unsigned_int_field(self, text, size, silent=False):
+        """解析无符号整数字段"""
+        try:
+            if not text:
+                return [0x00] * size
+            
+            # 移除0x前缀
+            if text.startswith('0x') or text.startswith('0X'):
+                text = text[2:]
+            
+            # 检查长度
+            max_length = size * 2
+            if len(text) > max_length:
+                if not silent:
+                    QMessageBox.warning(self, "警告", f"字段长度不能超过{max_length}位")
+                return None
+            
+            # 补零到指定长度
+            text = text.zfill(max_length)
+            
+            # 解析为整数
+            value = int(text, 16)
+            
+            # 转换为字节数组（小端序）
+            bytes_data = []
+            for i in range(size):
+                bytes_data.append((value >> (i * 8)) & 0xFF)
+            
+            return bytes_data
+            
+        except ValueError:
+            if not silent:
+                QMessageBox.warning(self, "警告", f"字段 {text} 不是有效的16进制数")
+            return None
+    
+    def parse_float_field(self, text, size, silent=False):
+        """解析浮点数字段"""
+        try:
+            if not text:
+                return [0x00] * size
+            
+            # 移除0x前缀
+            if text.startswith('0x') or text.startswith('0X'):
+                text = text[2:]
+            
+            # 检查长度
+            max_length = size * 2
+            if len(text) > max_length:
+                if not silent:
+                    QMessageBox.warning(self, "警告", f"字段长度不能超过{max_length}位")
+                return None
+            
+            # 补零到指定长度
+            text = text.zfill(max_length)
+            
+            # 解析为整数
+            value = int(text, 16)
+            
+            # 转换为字节数组（小端序）
+            bytes_data = []
+            for i in range(size):
+                bytes_data.append((value >> (i * 8)) & 0xFF)
+            
+            return bytes_data
+            
+        except ValueError:
+            if not silent:
+                QMessageBox.warning(self, "警告", f"字段 {text} 不是有效的16进制数")
+            return None
