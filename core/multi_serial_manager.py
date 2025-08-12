@@ -55,8 +55,11 @@ class MultiSerialManager(QObject):
             
             # 检查是否已经连接
             if port_name in self.serial_ports:
-                self.error_occurred.emit(port_name, f"串口 {port_name} 已经连接")
-                return False
+                # 如果已经连接，先断开旧连接
+                print(f"串口 {port_name} 已经连接，先断开旧连接")
+                self.disconnect_serial(port_name)
+                # 等待一下确保资源完全释放
+                time.sleep(0.2)
             
             # 设置默认参数
             baudrate = config.get('baudrate', 115200)
@@ -111,7 +114,6 @@ class MultiSerialManager(QObject):
                 receive_thread.start()
                 
                 # 等待线程启动
-                import time
                 time.sleep(0.05)
                 
                 # 发送连接状态信号
@@ -139,8 +141,10 @@ class MultiSerialManager(QObject):
         """断开串口连接"""
         try:
             if port_name not in self.serial_ports:
-                self.error_occurred.emit(port_name, f"串口 {port_name} 未连接")
-                return False
+                print(f"串口 {port_name} 未连接，无需断开")
+                return True
+            
+            print(f"开始断开串口 {port_name}")
             
             # 停止自动发送
             self.stop_auto_send(port_name)
@@ -153,33 +157,48 @@ class MultiSerialManager(QObject):
             serial_port = self.serial_ports[port_name]
             if serial_port.is_open:
                 serial_port.close()
+                print(f"串口 {port_name} 已关闭")
             
             # 等待接收线程结束
             if port_name in self.receive_threads:
-                import time
-                time.sleep(0.1)
+                thread = self.receive_threads[port_name]
+                if thread.is_alive():
+                    print(f"等待接收线程 {port_name} 结束")
+                    # 给线程一些时间来自然结束
+                    thread.join(timeout=1.0)
+                    if thread.is_alive():
+                        print(f"警告：接收线程 {port_name} 未能正常结束")
             
             # 清理资源
             if port_name in self.serial_ports:
                 del self.serial_ports[port_name]
+                print(f"已清理串口对象 {port_name}")
             if port_name in self.receive_threads:
                 del self.receive_threads[port_name]
+                print(f"已清理接收线程 {port_name}")
             if port_name in self.auto_send_timers:
                 del self.auto_send_timers[port_name]
+                print(f"已清理自动发送定时器 {port_name}")
             if port_name in self.auto_send_data:
                 del self.auto_send_data[port_name]
+                print(f"已清理自动发送数据 {port_name}")
             if port_name in self.statistics:
                 del self.statistics[port_name]
+                print(f"已清理统计信息 {port_name}")
             if port_name in self.auto_save_config:
                 del self.auto_save_config[port_name]
+                print(f"已清理自动保存配置 {port_name}")
             
             # 发送连接状态信号
             self.connection_changed.emit(port_name, False)
             
+            print(f"串口 {port_name} 断开完成")
             return True
             
         except Exception as e:
-            self.error_occurred.emit(port_name, f"断开串口连接失败: {str(e)}")
+            error_msg = f"断开串口连接失败: {str(e)}"
+            print(error_msg)
+            self.error_occurred.emit(port_name, error_msg)
             return False
     
     def send_data(self, port_name, data, hex_mode=False):

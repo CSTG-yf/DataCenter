@@ -167,6 +167,16 @@ class SerialCommunicationApp:
     def handle_connect_serial(self, port_name):
         """处理重新连接串口"""
         try:
+            # 检查串口是否已经连接
+            if self.serial_manager.get_connection_status(port_name):
+                print(f"串口 {port_name} 已经连接，无需重新连接")
+                # 更新配置页面的连接状态
+                config_page = self.main_window.right_menu.pages['config']
+                config_page.update_connection_status(True, port_name)
+                return
+            
+            print(f"开始重新连接串口: {port_name}")
+            
             # 获取串口的默认配置
             config = {
                 'port': port_name,
@@ -177,14 +187,18 @@ class SerialCommunicationApp:
             # 连接串口
             success = self.serial_manager.connect_serial(config)
             if success:
+                print(f"串口 {port_name} 重新连接成功")
                 # 更新连接状态
                 config_page = self.main_window.right_menu.pages['config']
                 config_page.update_connection_status(True, port_name)
             else:
+                print(f"串口 {port_name} 重新连接失败")
                 QMessageBox.warning(self.main_window, "警告", f"重新连接串口 {port_name} 失败")
                 
         except Exception as e:
-            QMessageBox.critical(self.main_window, "错误", f"重新连接串口失败: {str(e)}")
+            error_msg = f"重新连接串口失败: {str(e)}"
+            print(error_msg)
+            QMessageBox.critical(self.main_window, "错误", error_msg)
     
     def handle_settings_changed(self, settings):
         """处理设置改变"""

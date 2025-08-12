@@ -373,6 +373,15 @@ class ConfigPage(QWidget):
     
     def handle_connection_success(self, port_name):
         """处理连接成功"""
+        # 检查是否已经存在相同的串口组件
+        if port_name in self.serial_widgets:
+            print(f"串口 {port_name} 的组件已存在，更新状态")
+            # 更新现有组件的状态
+            self.serial_widgets[port_name].update_status(True)
+            return
+        
+        print(f"创建新的串口组件: {port_name}")
+        
         # 创建串口信息组件
         serial_widget = SerialInfoWidget(port_name)
         serial_widget.view_received_signal.connect(self.view_received_data)
@@ -475,26 +484,51 @@ class ConfigPage(QWidget):
     
     def remove_serial_widget(self, port_name):
         """移除串口组件"""
-        if port_name in self.serial_widgets:
+        try:
+            if port_name not in self.serial_widgets:
+                print(f"串口组件 {port_name} 不存在，无需移除")
+                return
+            
+            print(f"开始移除串口组件: {port_name}")
+            
             # 移除组件
             widget = self.serial_widgets[port_name]
             self.scroll_layout.removeWidget(widget)
             widget.deleteLater()
             del self.serial_widgets[port_name]
+            print(f"已移除串口组件 {port_name}")
             
             # 关闭相关窗口
             if port_name in self.received_windows:
-                self.received_windows[port_name].close()
-                del self.received_windows[port_name]
+                try:
+                    window = self.received_windows[port_name]
+                    if window.isVisible():
+                        window.close()
+                    del self.received_windows[port_name]
+                    print(f"已关闭接收窗口 {port_name}")
+                except Exception as e:
+                    print(f"关闭接收窗口 {port_name} 时发生错误: {str(e)}")
             
             if port_name in self.send_windows:
-                self.send_windows[port_name].close()
-                del self.send_windows[port_name]
+                try:
+                    window = self.send_windows[port_name]
+                    if window.isVisible():
+                        window.close()
+                    del self.send_windows[port_name]
+                    print(f"已关闭发送窗口 {port_name}")
+                except Exception as e:
+                    print(f"关闭发送窗口 {port_name} 时发生错误: {str(e)}")
             
             # 如果没有串口了，显示提示文本
             if not self.serial_widgets:
                 self.hint_label.show()
                 self.action_label.show()
+                print("所有串口组件已移除，显示提示文本")
+            
+            print(f"串口组件 {port_name} 移除完成")
+            
+        except Exception as e:
+            print(f"移除串口组件 {port_name} 时发生错误: {str(e)}")
     
     def show_settings(self):
         """显示设置"""
