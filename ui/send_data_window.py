@@ -644,14 +644,610 @@ class SendDataWindow(QMainWindow):
         scroll_area.setWidget(scroll_content)
         nav2_sol_layout.addWidget(scroll_area)
         
-        # 初始时隐藏两个专用输入框
+        # NAV2-PVH消息的专用输入框
+        self.nav2_pvh_widget = QWidget()
+        nav2_pvh_layout = QVBoxLayout(self.nav2_pvh_widget)
+        nav2_pvh_layout.setContentsMargins(0, 0, 0, 0)
+        nav2_pvh_layout.setSpacing(5)
+        
+        # NAV2-PVH标题
+        nav2_pvh_title = QLabel("NAV2-PVH 消息有效载荷 (LLA格式位置,ENU格式速度):")
+        nav2_pvh_title.setStyleSheet("""
+            QLabel {
+                font-size: 12px;
+                font-weight: bold;
+                color: #333333;
+                background-color: #fff3e0;
+                border: 1px solid #ffcc80;
+                border-radius: 4px;
+                padding: 5px;
+            }
+        """)
+        nav2_pvh_layout.addWidget(nav2_pvh_title)
+        
+        # 创建滚动区域来容纳所有字段
+        pvh_scroll_area = QScrollArea()
+        pvh_scroll_area.setWidgetResizable(True)
+        pvh_scroll_area.setMaximumHeight(300)  # 限制最大高度
+        pvh_scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: 1px solid #d0d0d0;
+                border-radius: 4px;
+                background-color: white;
+            }
+        """)
+        
+        # 创建滚动区域的内容部件
+        pvh_scroll_content = QWidget()
+        nav2_pvh_grid = QGridLayout(pvh_scroll_content)
+        nav2_pvh_grid.setSpacing(6)
+        nav2_pvh_grid.setContentsMargins(10, 10, 10, 10)
+        
+        # 定义NAV2-PVH字段信息
+        nav2_pvh_fields = [
+            # 偏移, 数据类型, 最大长度, 名称, 单位, 描述
+            (0, "I4", 8, "tow", "ms", "GPS时间, 周内时"),
+            (4, "U2", 4, "wn", "-", "GPS时间, 周数"),
+            (6, "U2", 4, "res1", "-", "保留"),
+            (8, "U1", 2, "fixflags", "-", "位置有效标志"),
+            (9, "U1", 2, "velflags", "-", "速度有效标志"),
+            (10, "U1", 2, "res2", "-", "保留"),
+            (11, "U1", 2, "fixGnssMask", "-", "参与定位的卫星系统掩码"),
+            (12, "U1", 2, "numFixtot", "-", "参与解算的卫星总数"),
+            (13, "U1", 2, "numFixGps", "-", "参与解算的GPS卫星数目"),
+            (14, "U1", 2, "numFixBds", "-", "参与解算的BDS卫星数目"),
+            (15, "U1", 2, "numFixGln", "-", "参与解算的GLONASS卫星数目"),
+            (16, "U1", 2, "numFixGal", "-", "参与解算的GALILEO卫星数目"),
+            (17, "U1", 2, "numFixQzs", "-", "参与解算的QZSS卫星数目"),
+            (18, "U1", 2, "numFixSbs", "-", "参与解算的SBAS卫星数目"),
+            (19, "U1", 2, "numFixIrn", "-", "参与解算的IRNSS卫星数目"),
+            (20, "U4", 8, "res3", "-", "保留"),
+            (24, "R8", 16, "lon", "度", "经度"),
+            (32, "R8", 16, "lat", "度", "纬度"),
+            (40, "R4", 8, "height", "m", "大地高度"),
+            (44, "R4", 8, "sepGeoid", "m", "高度异常"),
+            (48, "R4", 8, "velE", "m/s", "ENU坐标系中的东向速度"),
+            (52, "R4", 8, "velN", "m/s", "ENU坐标系中的北向速度"),
+            (56, "R4", 8, "velU", "m/s", "ENU坐标系中的天向速度"),
+            (60, "R4", 8, "speed3D", "m/s", "3D速度"),
+            (64, "R4", 8, "speed2D", "m/s", "2D对地速度"),
+            (68, "R4", 8, "heading", "度", "航向"),
+            (72, "R4", 8, "hAcc", "m", "位置的估计水平精度误差"),
+            (76, "R4", 8, "vAcc", "m", "位置的估计垂直精度误差"),
+            (80, "R4", 8, "sAcc", "m/s", "3D速度的估计精度误差"),
+            (84, "R4", 8, "cAcc", "度", "航向的精度误差")
+        ]
+        
+        # 创建输入框字典
+        self.nav2_pvh_inputs = {}
+        
+        # 创建所有字段的输入框
+        for i, (offset, data_type, max_length, name, unit, description) in enumerate(nav2_pvh_fields):
+            row = i // 2  # 每行2个字段
+            col = (i % 2) * 2  # 每2列为一组
+            
+            # 字段标签
+            label_text = f"{name} ({description}):"
+            label = QLabel(label_text)
+            label.setStyleSheet("""
+                QLabel {
+                    font-size: 10px;
+                    color: #333333;
+                    background-color: transparent;
+                    border: none;
+                }
+            """)
+            label.setWordWrap(True)
+            nav2_pvh_grid.addWidget(label, row, col)
+            
+            # 输入框
+            input_field = QLineEdit()
+            input_field.setPlaceholderText(f"输入{max_length}位16进制数，留空默认为0")
+            input_field.setMaxLength(max_length)
+            input_field.setStyleSheet("""
+                QLineEdit {
+                    border: 1px solid #d0d0d0;
+                    border-radius: 4px;
+                    padding: 4px;
+                    background-color: white;
+                    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                    font-size: 10px;
+                    color: #333333;
+                    min-width: 100px;
+                }
+                QLineEdit:focus {
+                    border: 2px solid #2196F3;
+                }
+            """)
+            
+            # 连接信号
+            input_field.textChanged.connect(self.on_nav2_pvh_changed)
+            input_field.textChanged.connect(self.validate_hex_input)
+            input_field.editingFinished.connect(self.auto_pad_hex_input)
+            
+            nav2_pvh_grid.addWidget(input_field, row, col + 1)
+            
+            # 存储输入框引用
+            self.nav2_pvh_inputs[name] = input_field
+        
+        # 设置滚动区域的内容
+        pvh_scroll_area.setWidget(pvh_scroll_content)
+        nav2_pvh_layout.addWidget(pvh_scroll_area)
+        
+        # NAV2-TIMEUTC消息的专用输入框
+        self.nav2_timeutc_widget = QWidget()
+        nav2_timeutc_layout = QVBoxLayout(self.nav2_timeutc_widget)
+        nav2_timeutc_layout.setContentsMargins(0, 0, 0, 0)
+        nav2_timeutc_layout.setSpacing(5)
+        
+        # NAV2-TIMEUTC标题
+        nav2_timeutc_title = QLabel("NAV2-TIMEUTC 消息有效载荷 (UTC时间信息):")
+        nav2_timeutc_title.setStyleSheet("""
+            QLabel {
+                font-size: 12px;
+                font-weight: bold;
+                color: #333333;
+                background-color: #f3e5f5;
+                border: 1px solid #ce93d8;
+                border-radius: 4px;
+                padding: 5px;
+            }
+        """)
+        nav2_timeutc_layout.addWidget(nav2_timeutc_title)
+        
+        # 创建滚动区域来容纳所有字段
+        timeutc_scroll_area = QScrollArea()
+        timeutc_scroll_area.setWidgetResizable(True)
+        timeutc_scroll_area.setMaximumHeight(300)  # 限制最大高度
+        timeutc_scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: 1px solid #d0d0d0;
+                border-radius: 4px;
+                background-color: white;
+            }
+        """)
+        
+        # 创建滚动区域的内容部件
+        timeutc_scroll_content = QWidget()
+        nav2_timeutc_grid = QGridLayout(timeutc_scroll_content)
+        nav2_timeutc_grid.setSpacing(6)
+        nav2_timeutc_grid.setContentsMargins(10, 10, 10, 10)
+        
+        # 定义NAV2-TIMEUTC字段信息
+        nav2_timeutc_fields = [
+            # 偏移, 数据类型, 最大长度, 名称, 单位, 描述
+            (0, "R4", 8, "tacc", "ns", "接收机的时间误差估计值"),
+            (4, "I4", 8, "subms", "ms", "时间的毫秒误差值, 范围: -0.5ms~0.5ms"),
+            (8, "I1", 2, "subcs", "ms", "时间的厘秒误差值, 范围: -5ms~5ms"),
+            (9, "U1", 2, "cs", "cs", "时间的整数厘秒值, 范围: 0cs~99cs"),
+            (10, "U2", 4, "year", "-", "年份"),
+            (12, "U1", 2, "month", "-", "月份"),
+            (13, "U1", 2, "day", "-", "日期"),
+            (14, "U1", 2, "hour", "-", "小时数"),
+            (15, "U1", 2, "minute", "-", "分钟数"),
+            (16, "U1", 2, "second", "-", "秒数"),
+            (17, "U1", 2, "tflagx", "-", "综合时间标志"),
+            (18, "U1", 2, "tsrc", "-", "时间的卫星系统来源"),
+            (19, "I1", 2, "leapsec", "s", "当前的闰秒值")
+        ]
+        
+        # 创建输入框字典
+        self.nav2_timeutc_inputs = {}
+        
+        # 创建所有字段的输入框
+        for i, (offset, data_type, max_length, name, unit, description) in enumerate(nav2_timeutc_fields):
+            row = i // 2  # 每行2个字段
+            col = (i % 2) * 2  # 每2列为一组
+            
+            # 字段标签
+            label_text = f"{name} ({description}):"
+            label = QLabel(label_text)
+            label.setStyleSheet("""
+                QLabel {
+                    font-size: 10px;
+                    color: #333333;
+                    background-color: transparent;
+                    border: none;
+                }
+            """)
+            label.setWordWrap(True)
+            nav2_timeutc_grid.addWidget(label, row, col)
+            
+            # 输入框
+            input_field = QLineEdit()
+            input_field.setPlaceholderText(f"输入{max_length}位16进制数，留空默认为0")
+            input_field.setMaxLength(max_length)
+            input_field.setStyleSheet("""
+                QLineEdit {
+                    border: 1px solid #d0d0d0;
+                    border-radius: 4px;
+                    padding: 4px;
+                    background-color: white;
+                    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                    font-size: 10px;
+                    color: #333333;
+                    min-width: 100px;
+                }
+                QLineEdit:focus {
+                    border: 2px solid #2196F3;
+                }
+            """)
+            
+            # 连接信号
+            input_field.textChanged.connect(self.on_nav2_timeutc_changed)
+            input_field.textChanged.connect(self.validate_hex_input)
+            input_field.editingFinished.connect(self.auto_pad_hex_input)
+            
+            nav2_timeutc_grid.addWidget(input_field, row, col + 1)
+            
+            # 存储输入框引用
+            self.nav2_timeutc_inputs[name] = input_field
+        
+        # 设置滚动区域的内容
+        timeutc_scroll_area.setWidget(timeutc_scroll_content)
+        nav2_timeutc_layout.addWidget(timeutc_scroll_area)
+        
+        # NAV2-CLK消息的专用输入框
+        self.nav2_clk_widget = QWidget()
+        nav2_clk_layout = QVBoxLayout(self.nav2_clk_widget)
+        nav2_clk_layout.setContentsMargins(0, 0, 0, 0)
+        nav2_clk_layout.setSpacing(5)
+        
+        # NAV2-CLK标题
+        nav2_clk_title = QLabel("NAV2-CLK 消息有效载荷 (接收机时间偏差, 频率偏差):")
+        nav2_clk_title.setStyleSheet("""
+            QLabel {
+                font-size: 12px;
+                font-weight: bold;
+                color: #333333;
+                background-color: #e8f5e8;
+                border: 1px solid #81c784;
+                border-radius: 4px;
+                padding: 5px;
+            }
+        """)
+        nav2_clk_layout.addWidget(nav2_clk_title)
+        
+        # 创建滚动区域来容纳所有字段
+        clk_scroll_area = QScrollArea()
+        clk_scroll_area.setWidgetResizable(True)
+        clk_scroll_area.setMaximumHeight(300)  # 限制最大高度
+        clk_scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: 1px solid #d0d0d0;
+                border-radius: 4px;
+                background-color: white;
+            }
+        """)
+        
+        # 创建滚动区域的内容部件
+        clk_scroll_content = QWidget()
+        nav2_clk_grid = QGridLayout(clk_scroll_content)
+        nav2_clk_grid.setSpacing(6)
+        nav2_clk_grid.setContentsMargins(10, 10, 10, 10)
+        
+        # 定义NAV2-CLK字段信息
+        nav2_clk_fields = [
+            # 偏移, 数据类型, 最大长度, 名称, 单位, 描述
+            (0, "U1", 2, "tsrc", "-", "卫星系统时间源"),
+            (1, "U1", 2, "res1", "-", "保留字段"),
+            (2, "U1", 2, "towflag", "-", "接收机时间有效标志"),
+            (3, "U1", 2, "frqflag", "-", "接收机频率偏差有效标志"),
+            (4, "I4", 8, "clkbias", "ns", "当前接收机时间偏差"),
+            (8, "R4", 8, "dfxTcxo", "s/s", "接收机TCXO相对频率偏差"),
+            (12, "R4", 8, "tacc", "ns", "接收机时间精度"),
+            (16, "R4", 8, "facc", "ppb", "接收机频率精度")
+        ]
+        
+        # 创建输入框字典
+        self.nav2_clk_inputs = {}
+        
+        # 创建所有字段的输入框
+        for i, (offset, data_type, max_length, name, unit, description) in enumerate(nav2_clk_fields):
+            row = i // 2  # 每行2个字段
+            col = (i % 2) * 2  # 每2列为一组
+            
+            # 字段标签
+            label_text = f"{name} ({description}):"
+            label = QLabel(label_text)
+            label.setStyleSheet("""
+                QLabel {
+                    font-size: 10px;
+                    color: #333333;
+                    background-color: transparent;
+                    border: none;
+                }
+            """)
+            label.setWordWrap(True)
+            nav2_clk_grid.addWidget(label, row, col)
+            
+            # 输入框
+            input_field = QLineEdit()
+            input_field.setPlaceholderText(f"输入{max_length}位16进制数，留空默认为0")
+            input_field.setMaxLength(max_length)
+            input_field.setStyleSheet("""
+                QLineEdit {
+                    border: 1px solid #d0d0d0;
+                    border-radius: 4px;
+                    padding: 4px;
+                    background-color: white;
+                    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                    font-size: 10px;
+                    color: #333333;
+                    min-width: 100px;
+                }
+                QLineEdit:focus {
+                    border: 2px solid #2196F3;
+                }
+            """)
+            
+            # 连接信号
+            input_field.textChanged.connect(self.on_nav2_clk_changed)
+            input_field.textChanged.connect(self.validate_hex_input)
+            input_field.editingFinished.connect(self.auto_pad_hex_input)
+            
+            nav2_clk_grid.addWidget(input_field, row, col + 1)
+            
+            # 存储输入框引用
+            self.nav2_clk_inputs[name] = input_field
+        
+        # 设置滚动区域的内容
+        clk_scroll_area.setWidget(clk_scroll_content)
+        nav2_clk_layout.addWidget(clk_scroll_area)
+        
+        # NAV2-RVT消息的专用输入框
+        self.nav2_rvt_widget = QWidget()
+        nav2_rvt_layout = QVBoxLayout(self.nav2_rvt_widget)
+        nav2_rvt_layout.setContentsMargins(0, 0, 0, 0)
+        nav2_rvt_layout.setSpacing(5)
+        
+        # NAV2-RVT标题
+        nav2_rvt_title = QLabel("NAV2-RVT 消息有效载荷 (接收机原始时间信息):")
+        nav2_rvt_title.setStyleSheet("""
+            QLabel {
+                font-size: 12px;
+                font-weight: bold;
+                color: #333333;
+                background-color: #fff8e1;
+                border: 1px solid #ffb74d;
+                border-radius: 4px;
+                padding: 5px;
+            }
+        """)
+        nav2_rvt_layout.addWidget(nav2_rvt_title)
+        
+        # 创建滚动区域来容纳所有字段
+        rvt_scroll_area = QScrollArea()
+        rvt_scroll_area.setWidgetResizable(True)
+        rvt_scroll_area.setMaximumHeight(300)  # 限制最大高度
+        rvt_scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: 1px solid #d0d0d0;
+                border-radius: 4px;
+                background-color: white;
+            }
+        """)
+        
+        # 创建滚动区域的内容部件
+        rvt_scroll_content = QWidget()
+        nav2_rvt_grid = QGridLayout(rvt_scroll_content)
+        nav2_rvt_grid.setSpacing(6)
+        nav2_rvt_grid.setContentsMargins(10, 10, 10, 10)
+        
+        # 定义NAV2-RVT字段信息
+        nav2_rvt_fields = [
+            # 偏移, 数据类型, 最大长度, 名称, 单位, 描述
+            (0, "I4", 8, "rawTow", "ms", "原始接收机时间, GPS周内时的整毫秒部分"),
+            (4, "I4", 8, "rawTowSubms", "ms", "原始接收机时间, GPS周内时的小数毫秒部分"),
+            (8, "I4", 8, "dtuTow", "ms", "原始接收机时间误差的整数毫秒"),
+            (12, "I4", 8, "dtuTowSubms", "ms", "原始接收机时间误差的小数毫秒"),
+            (16, "I2", 4, "wn", "-", "原始接收机时间, GPS 周数"),
+            (18, "U1", 2, "towflag", "-", "时间的有效标志"),
+            (19, "U1", 2, "wnflag", "-", "周数的有效标志"),
+            (20, "U1", 2, "res1", "-", "保留"),
+            (21, "U1", 2, "ambflag", "-", "接收机整毫秒模糊度标志"),
+            (22, "U1", 2, "dtuflag", "-", "接收机时间误差的有效标志"),
+            (23, "U1", 2, "rvtRstTag", "-", "接收机时钟重置计数器"),
+            (24, "I4", 8, "rvtRst", "ms", "接收机时钟调整量"),
+            (28, "R4", 8, "tacc", "ns", "接收机的时间精度"),
+            (32, "I4", 8, "res5", "-", "保留"),
+            (36, "I4", 8, "res6", "-", "保留"),
+            (40, "R4", 8, "dtmeas", "s", "距上次定位测量的时间间隔"),
+            (44, "I1", 2, "res2", "-", "保留"),
+            (45, "I1", 2, "dtsBds2Gps", "s", "BDS和GPS 时间的整秒偏差"),
+            (46, "I1", 2, "dtsGln2Gps", "s", "GLONASS和GPS 时间的整秒偏差"),
+            (47, "I1", 2, "dtsGal2Gps", "s", "GALILEO和GPS 时间的整秒偏差"),
+            (48, "I1", 2, "dtsIrn2Gps", "s", "IRNSS和GPS 时间的整秒偏差"),
+            (49, "U1", 2, "res3", "-", "保留"),
+            (50, "U2", 4, "res4", "-", "保留")
+        ]
+        
+        # 创建输入框字典
+        self.nav2_rvt_inputs = {}
+        
+        # 创建所有字段的输入框
+        for i, (offset, data_type, max_length, name, unit, description) in enumerate(nav2_rvt_fields):
+            row = i // 2  # 每行2个字段
+            col = (i % 2) * 2  # 每2列为一组
+            
+            # 字段标签
+            label_text = f"{name} ({description}):"
+            label = QLabel(label_text)
+            label.setStyleSheet("""
+                QLabel {
+                    font-size: 10px;
+                    color: #333333;
+                    background-color: transparent;
+                    border: none;
+                }
+            """)
+            label.setWordWrap(True)
+            nav2_rvt_grid.addWidget(label, row, col)
+            
+            # 输入框
+            input_field = QLineEdit()
+            input_field.setPlaceholderText(f"输入{max_length}位16进制数，留空默认为0")
+            input_field.setMaxLength(max_length)
+            input_field.setStyleSheet("""
+                QLineEdit {
+                    border: 1px solid #d0d0d0;
+                    border-radius: 4px;
+                    padding: 4px;
+                    background-color: white;
+                    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                    font-size: 10px;
+                    color: #333333;
+                    min-width: 100px;
+                }
+                QLineEdit:focus {
+                    border: 2px solid #2196F3;
+                }
+            """)
+            
+            # 连接信号
+            input_field.textChanged.connect(self.on_nav2_rvt_changed)
+            input_field.textChanged.connect(self.validate_hex_input)
+            input_field.editingFinished.connect(self.auto_pad_hex_input)
+            
+            nav2_rvt_grid.addWidget(input_field, row, col + 1)
+            
+            # 存储输入框引用
+            self.nav2_rvt_inputs[name] = input_field
+        
+        # 设置滚动区域的内容
+        rvt_scroll_area.setWidget(rvt_scroll_content)
+        nav2_rvt_layout.addWidget(rvt_scroll_area)
+        
+        # NAV2-RTC消息的专用输入框
+        self.nav2_rtc_widget = QWidget()
+        nav2_rtc_layout = QVBoxLayout(self.nav2_rtc_widget)
+        nav2_rtc_layout.setContentsMargins(0, 0, 0, 0)
+        nav2_rtc_layout.setSpacing(5)
+        
+        # NAV2-RTC标题
+        nav2_rtc_title = QLabel("NAV2-RTC 消息有效载荷 (接收机 RTC 时间信息):")
+        nav2_rtc_title.setStyleSheet("""
+            QLabel {
+                font-size: 12px;
+                font-weight: bold;
+                color: #333333;
+                background-color: #fce4ec;
+                border: 1px solid #f48fb1;
+                border-radius: 4px;
+                padding: 5px;
+            }
+        """)
+        nav2_rtc_layout.addWidget(nav2_rtc_title)
+        
+        # 创建滚动区域来容纳所有字段
+        rtc_scroll_area = QScrollArea()
+        rtc_scroll_area.setWidgetResizable(True)
+        rtc_scroll_area.setMaximumHeight(300)  # 限制最大高度
+        rtc_scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: 1px solid #d0d0d0;
+                border-radius: 4px;
+                background-color: white;
+            }
+        """)
+        
+        # 创建滚动区域的内容部件
+        rtc_scroll_content = QWidget()
+        nav2_rtc_grid = QGridLayout(rtc_scroll_content)
+        nav2_rtc_grid.setSpacing(6)
+        nav2_rtc_grid.setContentsMargins(10, 10, 10, 10)
+        
+        # 定义NAV2-RTC字段信息
+        nav2_rtc_fields = [
+            # 偏移, 数据类型, 最大长度, 名称, 单位, 描述
+            (0, "I4", 8, "dtRtcTow", "ms", "RTC 时间误差,整数毫秒部分"),
+            (4, "I4", 8, "dtRtcTowSubms", "ms", "RTC 时间误差,小数毫秒部分"),
+            (8, "I4", 8, "rtcTow", "ms", "RTC 时间的整数毫秒"),
+            (12, "I4", 8, "rtcTowSubms", "ms", "RTC 时间的小数毫秒"),
+            (16, "I2", 4, "wn", "-", "RTC 时间,GPS 周数"),
+            (18, "U1", 2, "res1", "-", "保留"),
+            (19, "I1", 2, "leapSec", "s", "GPS 闰秒"),
+            (20, "I4", 8, "dfRtc", "Hz", "RTC 晶振频偏"),
+            (24, "U1", 2, "dfRtcFlag", "-", "RTC 晶振频偏的计算有效标志"),
+            (25, "U1", 2, "rtcSrc", "-", "RTC 时间校准的数据源"),
+            (26, "I2", 4, "res2", "-", "保留"),
+            (28, "I4", 8, "res3", "-", "保留")
+        ]
+        
+        # 创建输入框字典
+        self.nav2_rtc_inputs = {}
+        
+        # 创建所有字段的输入框
+        for i, (offset, data_type, max_length, name, unit, description) in enumerate(nav2_rtc_fields):
+            row = i // 2  # 每行2个字段
+            col = (i % 2) * 2  # 每2列为一组
+            
+            # 字段标签
+            label_text = f"{name} ({description}):"
+            label = QLabel(label_text)
+            label.setStyleSheet("""
+                QLabel {
+                    font-size: 10px;
+                    color: #333333;
+                    background-color: transparent;
+                    border: none;
+                }
+            """)
+            label.setWordWrap(True)
+            nav2_rtc_grid.addWidget(label, row, col)
+            
+            # 输入框
+            input_field = QLineEdit()
+            input_field.setPlaceholderText(f"输入{max_length}位16进制数，留空默认为0")
+            input_field.setMaxLength(max_length)
+            input_field.setStyleSheet("""
+                QLineEdit {
+                    border: 1px solid #d0d0d0;
+                    border-radius: 4px;
+                    padding: 4px;
+                    background-color: white;
+                    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                    font-size: 10px;
+                    color: #333333;
+                    min-width: 100px;
+                }
+                QLineEdit:focus {
+                    border: 2px solid #2196F3;
+                }
+            """)
+            
+            # 连接信号
+            input_field.textChanged.connect(self.on_nav2_rtc_changed)
+            input_field.textChanged.connect(self.validate_hex_input)
+            input_field.editingFinished.connect(self.auto_pad_hex_input)
+            
+            nav2_rtc_grid.addWidget(input_field, row, col + 1)
+            
+            # 存储输入框引用
+            self.nav2_rtc_inputs[name] = input_field
+        
+        # 设置滚动区域的内容
+        rtc_scroll_area.setWidget(rtc_scroll_content)
+        nav2_rtc_layout.addWidget(rtc_scroll_area)
+        
+        # 初始时隐藏七个专用输入框
         self.nav2_dop_widget.hide()
         self.nav2_sol_widget.hide()
+        self.nav2_pvh_widget.hide()
+        self.nav2_timeutc_widget.hide()
+        self.nav2_clk_widget.hide()
+        self.nav2_rvt_widget.hide()
+        self.nav2_rtc_widget.hide()
         
         # 将两个输入方式添加到有效载荷布局中
         payload_layout.addWidget(self.payload_input)
         payload_layout.addWidget(self.nav2_dop_widget)
         payload_layout.addWidget(self.nav2_sol_widget)
+        payload_layout.addWidget(self.nav2_pvh_widget)
+        payload_layout.addWidget(self.nav2_timeutc_widget)
+        payload_layout.addWidget(self.nav2_clk_widget)
+        payload_layout.addWidget(self.nav2_rvt_widget)
+        payload_layout.addWidget(self.nav2_rtc_widget)
         
         fields_grid.addWidget(payload_widget, 4, 1)
         
@@ -993,6 +1589,26 @@ class SendDataWindow(QMainWindow):
         for input_field in self.nav2_sol_inputs.values():
             input_field.clear()
         
+        # 清空NAV2-PVH输入框
+        for input_field in self.nav2_pvh_inputs.values():
+            input_field.clear()
+        
+        # 清空NAV2-TIMEUTC输入框
+        for input_field in self.nav2_timeutc_inputs.values():
+            input_field.clear()
+        
+        # 清空NAV2-CLK输入框
+        for input_field in self.nav2_clk_inputs.values():
+            input_field.clear()
+        
+        # 清空NAV2-RVT输入框
+        for input_field in self.nav2_rvt_inputs.values():
+            input_field.clear()
+        
+        # 清空NAV2-RTC输入框
+        for input_field in self.nav2_rtc_inputs.values():
+            input_field.clear()
+        
         # 重新设置消息ID选项
         self.on_class_changed()
         
@@ -1024,14 +1640,74 @@ class SendDataWindow(QMainWindow):
             if class_value == 0x11 and id_value == 0x01: # NAV2-DOP
                 self.nav2_dop_widget.show()
                 self.nav2_sol_widget.hide()
+                self.nav2_pvh_widget.hide()
+                self.nav2_timeutc_widget.hide()
+                self.nav2_clk_widget.hide()
+                self.nav2_rvt_widget.hide()
+                self.nav2_rtc_widget.hide()
                 self.payload_input.hide() # 隐藏默认的payload输入框
             elif class_value == 0x11 and id_value == 0x02: # NAV2-SOL
                 self.nav2_dop_widget.hide()
                 self.nav2_sol_widget.show()
+                self.nav2_pvh_widget.hide()
+                self.nav2_timeutc_widget.hide()
+                self.nav2_clk_widget.hide()
+                self.nav2_rvt_widget.hide()
+                self.nav2_rtc_widget.hide()
                 self.payload_input.hide() # 隐藏默认的payload输入框
+            elif class_value == 0x11 and id_value == 0x03: # NAV2-PVH
+                self.nav2_dop_widget.hide()
+                self.nav2_sol_widget.hide()
+                self.nav2_pvh_widget.show()
+                self.nav2_timeutc_widget.hide()
+                self.nav2_clk_widget.hide()
+                self.nav2_rvt_widget.hide()
+                self.nav2_rtc_widget.hide()
+                self.payload_input.hide() # 隐藏默认的payload输入框
+            elif class_value == 0x11 and id_value == 0x05: # NAV2-TIMEUTC
+                self.nav2_dop_widget.hide()
+                self.nav2_sol_widget.hide()
+                self.nav2_pvh_widget.hide()
+                self.nav2_timeutc_widget.show()
+                self.nav2_clk_widget.hide()
+                self.nav2_rvt_widget.hide()
+                self.nav2_rtc_widget.hide()
+                self.payload_input.hide() # 隐藏默认的payload输入框
+            elif class_value == 0x11 and id_value == 0x07: # NAV2-CLK
+                self.nav2_dop_widget.hide()
+                self.nav2_sol_widget.hide()
+                self.nav2_pvh_widget.hide()
+                self.nav2_timeutc_widget.hide()
+                self.nav2_clk_widget.show()
+                self.nav2_rvt_widget.hide()
+                self.nav2_rtc_widget.hide()
+                self.payload_input.hide()
+            elif class_value == 0x11 and id_value == 0x08: # NAV2-RVT
+                self.nav2_dop_widget.hide()
+                self.nav2_sol_widget.hide()
+                self.nav2_pvh_widget.hide()
+                self.nav2_timeutc_widget.hide()
+                self.nav2_clk_widget.hide()
+                self.nav2_rvt_widget.show()
+                self.nav2_rtc_widget.hide()
+                self.payload_input.hide()
+            elif class_value == 0x11 and id_value == 0x09: # NAV2-RTC
+                self.nav2_dop_widget.hide()
+                self.nav2_sol_widget.hide()
+                self.nav2_pvh_widget.hide()
+                self.nav2_timeutc_widget.hide()
+                self.nav2_clk_widget.hide()
+                self.nav2_rvt_widget.hide()
+                self.nav2_rtc_widget.show()
+                self.payload_input.hide()
             else:
                 self.nav2_dop_widget.hide()
                 self.nav2_sol_widget.hide()
+                self.nav2_pvh_widget.hide()
+                self.nav2_timeutc_widget.hide()
+                self.nav2_clk_widget.hide()
+                self.nav2_rvt_widget.hide()
+                self.nav2_rtc_widget.hide()
                 self.payload_input.show() # 显示默认的payload输入框
 
             # 获取有效载荷数据
@@ -1059,23 +1735,45 @@ class SendDataWindow(QMainWindow):
                 payload_data = self.parse_nav2_sol_payload(silent)
                 if payload_data is None:
                     return None
+            elif self.nav2_pvh_widget.isVisible():
+                # NAV2-PVH消息：根据字段类型解析
+                payload_data = self.parse_nav2_pvh_payload(silent)
+                if payload_data is None:
+                    return None
+            elif self.nav2_timeutc_widget.isVisible():
+                # NAV2-TIMEUTC消息：根据字段类型解析
+                payload_data = self.parse_nav2_timeutc_payload(silent)
+                if payload_data is None:
+                    return None
+            elif self.nav2_clk_widget.isVisible():
+                # NAV2-CLK消息：根据字段类型解析
+                payload_data = self.parse_nav2_clk_payload(silent)
+                if payload_data is None:
+                    return None
+            elif self.nav2_rvt_widget.isVisible():
+                # NAV2-RVT消息：根据字段类型解析
+                payload_data = self.parse_nav2_rvt_payload(silent)
+                if payload_data is None:
+                    return None
+            elif self.nav2_rtc_widget.isVisible():
+                # NAV2-RTC消息：根据字段类型解析
+                payload_data = self.parse_nav2_rtc_payload(silent)
+                if payload_data is None:
+                    return None
             else:
                 payload_text = self.payload_input.toPlainText().strip()
                 if not payload_text:
-                    self.length_input.setText("0 字节 (0x0000)")
-                    self.checksum_input.setText(f"0x{(id_value << 24) + (class_value << 16):08X}")
-                    self.preview_text.setPlainText("请输入有效载荷数据")
-                    return
-                
-                payload_data = self.parse_hex_payload(payload_text, silent)
-                if payload_data is None:
-                    return
-                
-                # 检查有效载荷长度是否为4的倍数
-                if len(payload_data) % 4 != 0:
-                    if not silent:
-                        QMessageBox.warning(self, "警告", "有效载荷长度必须是4的倍数")
-                    return
+                    payload_data = []
+                else:
+                    payload_data = self.parse_hex_payload(payload_text, silent)
+                    if payload_data is None:
+                        return None
+                    
+                    # 检查有效载荷长度是否为4的倍数
+                    if len(payload_data) % 4 != 0:
+                        if not silent:
+                            QMessageBox.warning(self, "警告", "有效载荷长度必须是4的倍数")
+                        return None
             
             # 计算有效载荷长度（字节数）
             payload_length = len(payload_data)
@@ -1251,6 +1949,47 @@ class SendDataWindow(QMainWindow):
                 QMessageBox.warning(self, "警告", f"字段 {text} 不是有效的16进制数")
             return None
     
+    def parse_nav2_pvh_field(self, text, silent=False):
+        """解析NAV2-PVH字段的16进制输入，转换为4字节数据"""
+        try:
+            # 清理输入文本
+            text = text.strip()
+            
+            # 如果为空，默认为全0
+            if not text:
+                return [0x00, 0x00, 0x00, 0x00]
+            
+            # 移除0x前缀
+            if text.startswith('0x') or text.startswith('0X'):
+                text = text[2:]
+            
+            # 检查长度是否超过8位
+            if len(text) > 8:
+                if not silent:
+                    QMessageBox.warning(self, "警告", f"字段 {text} 不能超过8位16进制数")
+                return None
+            
+            # 在封装时自动补零到8位（不在输入框内显示）
+            text = text.zfill(8)
+            
+            # 解析为32位整数
+            value = int(text, 16)
+            
+            # 转换为4字节（小端序）
+            bytes_data = [
+                value & 0xFF,           # 最低字节
+                (value >> 8) & 0xFF,   # 第二字节
+                (value >> 16) & 0xFF,  # 第三字节
+                (value >> 24) & 0xFF   # 最高字节
+            ]
+            
+            return bytes_data
+            
+        except ValueError:
+            if not silent:
+                QMessageBox.warning(self, "警告", f"字段 {text} 不是有效的16进制数")
+            return None
+    
     def calculate_checksum(self, class_value, id_value, payload_length, payload_data):
         """计算校验值"""
         # 按照算法: ckSum = (id << 24) + (class << 16) + len
@@ -1294,14 +2033,74 @@ class SendDataWindow(QMainWindow):
             if class_value == 0x11 and id_value == 0x01: # NAV2-DOP
                 self.nav2_dop_widget.show()
                 self.nav2_sol_widget.hide()
+                self.nav2_pvh_widget.hide()
+                self.nav2_timeutc_widget.hide()
+                self.nav2_clk_widget.hide()
+                self.nav2_rvt_widget.hide()
+                self.nav2_rtc_widget.hide()
                 self.payload_input.hide() # 隐藏默认的payload输入框
             elif class_value == 0x11 and id_value == 0x02: # NAV2-SOL
                 self.nav2_dop_widget.hide()
                 self.nav2_sol_widget.show()
+                self.nav2_pvh_widget.hide()
+                self.nav2_timeutc_widget.hide()
+                self.nav2_clk_widget.hide()
+                self.nav2_rvt_widget.hide()
+                self.nav2_rtc_widget.hide()
                 self.payload_input.hide() # 隐藏默认的payload输入框
+            elif class_value == 0x11 and id_value == 0x03: # NAV2-PVH
+                self.nav2_dop_widget.hide()
+                self.nav2_sol_widget.hide()
+                self.nav2_pvh_widget.show()
+                self.nav2_timeutc_widget.hide()
+                self.nav2_clk_widget.hide()
+                self.nav2_rvt_widget.hide()
+                self.nav2_rtc_widget.hide()
+                self.payload_input.hide() # 隐藏默认的payload输入框
+            elif class_value == 0x11 and id_value == 0x05: # NAV2-TIMEUTC
+                self.nav2_dop_widget.hide()
+                self.nav2_sol_widget.hide()
+                self.nav2_pvh_widget.hide()
+                self.nav2_timeutc_widget.show()
+                self.nav2_clk_widget.hide()
+                self.nav2_rvt_widget.hide()
+                self.nav2_rtc_widget.hide()
+                self.payload_input.hide() # 隐藏默认的payload输入框
+            elif class_value == 0x11 and id_value == 0x07: # NAV2-CLK
+                self.nav2_dop_widget.hide()
+                self.nav2_sol_widget.hide()
+                self.nav2_pvh_widget.hide()
+                self.nav2_timeutc_widget.hide()
+                self.nav2_clk_widget.show()
+                self.nav2_rvt_widget.hide()
+                self.nav2_rtc_widget.hide()
+                self.payload_input.hide()
+            elif class_value == 0x11 and id_value == 0x08: # NAV2-RVT
+                self.nav2_dop_widget.hide()
+                self.nav2_sol_widget.hide()
+                self.nav2_pvh_widget.hide()
+                self.nav2_timeutc_widget.hide()
+                self.nav2_clk_widget.hide()
+                self.nav2_rvt_widget.show()
+                self.nav2_rtc_widget.hide()
+                self.payload_input.hide()
+            elif class_value == 0x11 and id_value == 0x09: # NAV2-RTC
+                self.nav2_dop_widget.hide()
+                self.nav2_sol_widget.hide()
+                self.nav2_pvh_widget.hide()
+                self.nav2_timeutc_widget.hide()
+                self.nav2_clk_widget.hide()
+                self.nav2_rvt_widget.hide()
+                self.nav2_rtc_widget.show()
+                self.payload_input.hide()
             else:
                 self.nav2_dop_widget.hide()
                 self.nav2_sol_widget.hide()
+                self.nav2_pvh_widget.hide()
+                self.nav2_timeutc_widget.hide()
+                self.nav2_clk_widget.hide()
+                self.nav2_rvt_widget.hide()
+                self.nav2_rtc_widget.hide()
                 self.payload_input.show() # 显示默认的payload输入框
 
             # 获取有效载荷数据
@@ -1329,6 +2128,31 @@ class SendDataWindow(QMainWindow):
                 payload_data = self.parse_nav2_sol_payload(silent)
                 if payload_data is None:
                     return None
+            elif self.nav2_pvh_widget.isVisible():
+                # NAV2-PVH消息：根据字段类型解析
+                payload_data = self.parse_nav2_pvh_payload(silent)
+                if payload_data is None:
+                    return None
+            elif self.nav2_timeutc_widget.isVisible():
+                # NAV2-TIMEUTC消息：根据字段类型解析
+                payload_data = self.parse_nav2_timeutc_payload(silent)
+                if payload_data is None:
+                    return None
+            elif self.nav2_clk_widget.isVisible():
+                # NAV2-CLK消息：根据字段类型解析
+                payload_data = self.parse_nav2_clk_payload(silent)
+                if payload_data is None:
+                    return None
+            elif self.nav2_rvt_widget.isVisible():
+                # NAV2-RVT消息：根据字段类型解析
+                payload_data = self.parse_nav2_rvt_payload(silent)
+                if payload_data is None:
+                    return None
+            elif self.nav2_rtc_widget.isVisible():
+                # NAV2-RTC消息：根据字段类型解析
+                payload_data = self.parse_nav2_rtc_payload(silent)
+                if payload_data is None:
+                    return None
             else:
                 payload_text = self.payload_input.toPlainText().strip()
                 if not payload_text:
@@ -1339,12 +2163,6 @@ class SendDataWindow(QMainWindow):
                 
                 payload_data = self.parse_hex_payload(payload_text, silent)
                 if payload_data is None:
-                    return
-                
-                # 检查有效载荷长度是否为4的倍数
-                if len(payload_data) % 4 != 0:
-                    if not silent:
-                        QMessageBox.warning(self, "警告", "有效载荷长度必须是4的倍数")
                     return
             
             # 构建完整数据包
@@ -1578,25 +2396,95 @@ class SendDataWindow(QMainWindow):
                 if id_value == 0x01:  # NAV2-DOP
                     self.nav2_dop_widget.show()
                     self.nav2_sol_widget.hide()
+                    self.nav2_pvh_widget.hide()
+                    self.nav2_timeutc_widget.hide()
+                    self.nav2_clk_widget.hide()
+                    self.nav2_rvt_widget.hide()
+                    self.nav2_rtc_widget.hide()
                     self.payload_input.hide()
                 elif id_value == 0x02:  # NAV2-SOL
                     self.nav2_dop_widget.hide()
                     self.nav2_sol_widget.show()
+                    self.nav2_pvh_widget.hide()
+                    self.nav2_timeutc_widget.hide()
+                    self.nav2_clk_widget.hide()
+                    self.nav2_rvt_widget.hide()
+                    self.nav2_rtc_widget.hide()
+                    self.payload_input.hide()
+                elif id_value == 0x03:  # NAV2-PVH
+                    self.nav2_dop_widget.hide()
+                    self.nav2_sol_widget.hide()
+                    self.nav2_pvh_widget.show()
+                    self.nav2_timeutc_widget.hide()
+                    self.nav2_clk_widget.hide()
+                    self.nav2_rvt_widget.hide()
+                    self.nav2_rtc_widget.hide()
+                    self.payload_input.hide()
+                elif id_value == 0x05:  # NAV2-TIMEUTC
+                    self.nav2_dop_widget.hide()
+                    self.nav2_sol_widget.hide()
+                    self.nav2_pvh_widget.hide()
+                    self.nav2_timeutc_widget.show()
+                    self.nav2_clk_widget.hide()
+                    self.nav2_rvt_widget.hide()
+                    self.nav2_rtc_widget.hide()
+                    self.payload_input.hide()
+                elif id_value == 0x07:  # NAV2-CLK
+                    self.nav2_dop_widget.hide()
+                    self.nav2_sol_widget.hide()
+                    self.nav2_pvh_widget.hide()
+                    self.nav2_timeutc_widget.hide()
+                    self.nav2_clk_widget.show()
+                    self.nav2_rvt_widget.hide()
+                    self.nav2_rtc_widget.hide()
+                    self.payload_input.hide()
+                elif id_value == 0x08:  # NAV2-RVT
+                    self.nav2_dop_widget.hide()
+                    self.nav2_sol_widget.hide()
+                    self.nav2_pvh_widget.hide()
+                    self.nav2_timeutc_widget.hide()
+                    self.nav2_clk_widget.hide()
+                    self.nav2_rvt_widget.show()
+                    self.nav2_rtc_widget.hide()
+                    self.payload_input.hide()
+                elif id_value == 0x09:  # NAV2-RTC
+                    self.nav2_dop_widget.hide()
+                    self.nav2_sol_widget.hide()
+                    self.nav2_pvh_widget.hide()
+                    self.nav2_timeutc_widget.hide()
+                    self.nav2_clk_widget.hide()
+                    self.nav2_rvt_widget.hide()
+                    self.nav2_rtc_widget.show()
                     self.payload_input.hide()
                 else:
                     # 其他NAV2消息ID
                     self.nav2_dop_widget.hide()
                     self.nav2_sol_widget.hide()
+                    self.nav2_pvh_widget.hide()
+                    self.nav2_timeutc_widget.hide()
+                    self.nav2_clk_widget.hide()
+                    self.nav2_rvt_widget.hide()
+                    self.nav2_rtc_widget.hide()
                     self.payload_input.show()
             else:
                 # 非NAV2消息类
                 self.nav2_dop_widget.hide()
                 self.nav2_sol_widget.hide()
+                self.nav2_pvh_widget.hide()
+                self.nav2_timeutc_widget.hide()
+                self.nav2_clk_widget.hide()
+                self.nav2_rvt_widget.hide()
+                self.nav2_rtc_widget.hide()
                 self.payload_input.show()
         except:
             # 如果解析失败，默认隐藏专用输入框
             self.nav2_dop_widget.hide()
             self.nav2_sol_widget.hide()
+            self.nav2_pvh_widget.hide()
+            self.nav2_timeutc_widget.hide()
+            self.nav2_clk_widget.hide()
+            self.nav2_rvt_widget.hide()
+            self.nav2_rtc_widget.hide()
             self.payload_input.show()
     
     def on_nav2_dop_changed(self):
@@ -1605,6 +2493,26 @@ class SendDataWindow(QMainWindow):
     
     def on_nav2_sol_changed(self):
         """当NAV2-SOL消息的有效载荷输入框内容改变时，更新预览"""
+        self.update_packet_preview()
+    
+    def on_nav2_pvh_changed(self):
+        """当NAV2-PVH消息的有效载荷输入框内容改变时，更新预览"""
+        self.update_packet_preview()
+    
+    def on_nav2_timeutc_changed(self):
+        """当NAV2-TIMEUTC消息的有效载荷输入框内容改变时，更新预览"""
+        self.update_packet_preview()
+    
+    def on_nav2_clk_changed(self):
+        """当NAV2-CLK消息的有效载荷输入框内容改变时，更新预览"""
+        self.update_packet_preview()
+    
+    def on_nav2_rvt_changed(self):
+        """当NAV2-RVT消息的有效载荷输入框内容改变时，更新预览"""
+        self.update_packet_preview()
+    
+    def on_nav2_rtc_changed(self):
+        """当NAV2-RTC消息的有效载荷输入框内容改变时，更新预览"""
         self.update_packet_preview()
 
     def validate_hex_input(self):
@@ -1860,4 +2768,314 @@ class SendDataWindow(QMainWindow):
         except ValueError:
             if not silent:
                 QMessageBox.warning(self, "警告", f"字段 {text} 不是有效的16进制数")
+            return None
+    
+    def parse_nav2_pvh_payload(self, silent=False):
+        """解析NAV2-PVH消息的有效载荷"""
+        try:
+            # 定义NAV2-PVH字段信息
+            nav2_pvh_fields = [
+                # 偏移, 数据类型, 最大长度, 名称, 单位, 描述
+                (0, "I4", 8, "tow", "ms", "GPS时间, 周内时"),
+                (4, "U2", 4, "wn", "-", "GPS时间, 周数"),
+                (6, "U2", 4, "res1", "-", "保留"),
+                (8, "U1", 2, "fixflags", "-", "位置有效标志"),
+                (9, "U1", 2, "velflags", "-", "速度有效标志"),
+                (10, "U1", 2, "res2", "-", "保留"),
+                (11, "U1", 2, "fixGnssMask", "-", "参与定位的卫星系统掩码"),
+                (12, "U1", 2, "numFixtot", "-", "参与解算的卫星总数"),
+                (13, "U1", 2, "numFixGps", "-", "参与解算的GPS卫星数目"),
+                (14, "U1", 2, "numFixBds", "-", "参与解算的BDS卫星数目"),
+                (15, "U1", 2, "numFixGln", "-", "参与解算的GLONASS卫星数目"),
+                (16, "U1", 2, "numFixGal", "-", "参与解算的GALILEO卫星数目"),
+                (17, "U1", 2, "numFixQzs", "-", "参与解算的QZSS卫星数目"),
+                (18, "U1", 2, "numFixSbs", "-", "参与解算的SBAS卫星数目"),
+                (19, "U1", 2, "numFixIrn", "-", "参与解算的IRNSS卫星数目"),
+                (20, "U4", 8, "res3", "-", "保留"),
+                (24, "R8", 16, "lon", "度", "经度"),
+                (32, "R8", 16, "lat", "度", "纬度"),
+                (40, "R4", 8, "height", "m", "大地高度"),
+                (44, "R4", 8, "sepGeoid", "m", "高度异常"),
+                (48, "R4", 8, "velE", "m/s", "ENU坐标系中的东向速度"),
+                (52, "R4", 8, "velN", "m/s", "ENU坐标系中的北向速度"),
+                (56, "R4", 8, "velU", "m/s", "ENU坐标系中的天向速度"),
+                (60, "R4", 8, "speed3D", "m/s", "3D速度"),
+                (64, "R4", 8, "speed2D", "m/s", "2D对地速度"),
+                (68, "R4", 8, "heading", "度", "航向"),
+                (72, "R4", 8, "hAcc", "m", "位置的估计水平精度误差"),
+                (76, "R4", 8, "vAcc", "m", "位置的估计垂直精度误差"),
+                (80, "R4", 8, "sAcc", "m/s", "3D速度的估计精度误差"),
+                (84, "R4", 8, "cAcc", "度", "航向的精度误差")
+            ]
+            
+            payload_data = []
+            
+            for offset, data_type, max_length, name, unit, description in nav2_pvh_fields:
+                # 获取输入框的值
+                if name in self.nav2_pvh_inputs:
+                    field_text = self.nav2_pvh_inputs[name].text().strip()
+                else:
+                    field_text = ""
+                
+                # 根据数据类型解析字段
+                if data_type == "I4":  # 4字节有符号整数
+                    field_bytes = self.parse_signed_int_field(field_text, 4, silent)
+                elif data_type == "U4":  # 4字节无符号整数
+                    field_bytes = self.parse_unsigned_int_field(field_text, 4, silent)
+                elif data_type == "U2":  # 2字节无符号整数
+                    field_bytes = self.parse_unsigned_int_field(field_text, 2, silent)
+                elif data_type == "U1":  # 1字节无符号整数
+                    field_bytes = self.parse_unsigned_int_field(field_text, 1, silent)
+                elif data_type == "R4":  # 4字节浮点数
+                    field_bytes = self.parse_float_field(field_text, 4, silent)
+                elif data_type == "R8":  # 8字节浮点数
+                    field_bytes = self.parse_float_field(field_text, 8, silent)
+                else:
+                    # 未知数据类型，使用默认值
+                    field_bytes = [0x00] * self.get_data_type_size(data_type)
+                
+                if field_bytes is None:
+                    return None
+                
+                payload_data.extend(field_bytes)
+            
+            return payload_data
+            
+        except Exception as e:
+            if not silent:
+                QMessageBox.warning(self, "警告", f"解析NAV2-PVH有效载荷失败: {str(e)}")
+            return None
+    
+    def parse_nav2_timeutc_payload(self, silent=False):
+        """解析NAV2-TIMEUTC消息的有效载荷"""
+        try:
+            # 定义NAV2-TIMEUTC字段信息
+            nav2_timeutc_fields = [
+                # 偏移, 数据类型, 最大长度, 名称, 单位, 描述
+                (0, "R4", 8, "tacc", "ns", "接收机的时间误差估计值"),
+                (4, "I4", 8, "subms", "ms", "时间的毫秒误差值, 范围: -0.5ms~0.5ms"),
+                (8, "I1", 2, "subcs", "ms", "时间的厘秒误差值, 范围: -5ms~5ms"),
+                (9, "U1", 2, "cs", "cs", "时间的整数厘秒值, 范围: 0cs~99cs"),
+                (10, "U2", 4, "year", "-", "年份"),
+                (12, "U1", 2, "month", "-", "月份"),
+                (13, "U1", 2, "day", "-", "日期"),
+                (14, "U1", 2, "hour", "-", "小时数"),
+                (15, "U1", 2, "minute", "-", "分钟数"),
+                (16, "U1", 2, "second", "-", "秒数"),
+                (17, "U1", 2, "tflagx", "-", "综合时间标志"),
+                (18, "U1", 2, "tsrc", "-", "时间的卫星系统来源"),
+                (19, "I1", 2, "leapsec", "s", "当前的闰秒值")
+            ]
+            
+            payload_data = []
+            
+            for offset, data_type, max_length, name, unit, description in nav2_timeutc_fields:
+                # 获取输入框的值
+                if name in self.nav2_timeutc_inputs:
+                    field_text = self.nav2_timeutc_inputs[name].text().strip()
+                else:
+                    field_text = ""
+                
+                # 根据数据类型解析字段
+                if data_type == "I4":  # 4字节有符号整数
+                    field_bytes = self.parse_signed_int_field(field_text, 4, silent)
+                elif data_type == "U4":  # 4字节无符号整数
+                    field_bytes = self.parse_unsigned_int_field(field_text, 4, silent)
+                elif data_type == "U2":  # 2字节无符号整数
+                    field_bytes = self.parse_unsigned_int_field(field_text, 2, silent)
+                elif data_type == "U1":  # 1字节无符号整数
+                    field_bytes = self.parse_unsigned_int_field(field_text, 1, silent)
+                elif data_type == "R4":  # 4字节浮点数
+                    field_bytes = self.parse_float_field(field_text, 4, silent)
+                elif data_type == "R8":  # 8字节浮点数
+                    field_bytes = self.parse_float_field(field_text, 8, silent)
+                else:
+                    # 未知数据类型，使用默认值
+                    field_bytes = [0x00] * self.get_data_type_size(data_type)
+                
+                if field_bytes is None:
+                    return None
+                
+                payload_data.extend(field_bytes)
+            
+            return payload_data
+            
+        except Exception as e:
+            if not silent:
+                QMessageBox.warning(self, "警告", f"解析NAV2-TIMEUTC有效载荷失败: {str(e)}")
+            return None
+    
+    def parse_nav2_clk_payload(self, silent=False):
+        """解析NAV2-CLK消息的有效载荷"""
+        try:
+            # 定义NAV2-CLK字段信息
+            nav2_clk_fields = [
+                # 偏移, 数据类型, 最大长度, 名称, 单位, 描述
+                (0, "U1", 2, "tsrc", "-", "卫星系统时间源"),
+                (1, "U1", 2, "res1", "-", "保留字段"),
+                (2, "U1", 2, "towflag", "-", "接收机时间有效标志"),
+                (3, "U1", 2, "frqflag", "-", "接收机频率偏差有效标志"),
+                (4, "I4", 8, "clkbias", "ns", "当前接收机时间偏差"),
+                (8, "R4", 8, "dfxTcxo", "s/s", "接收机TCXO相对频率偏差"),
+                (12, "R4", 8, "tacc", "ns", "接收机时间精度"),
+                (16, "R4", 8, "facc", "ppb", "接收机频率精度")
+            ]
+            
+            payload_data = []
+            
+            for offset, data_type, max_length, name, unit, description in nav2_clk_fields:
+                # 获取输入框的值
+                if name in self.nav2_clk_inputs:
+                    field_text = self.nav2_clk_inputs[name].text().strip()
+                else:
+                    field_text = ""
+                
+                # 根据数据类型解析字段
+                if data_type == "U1":  # 1字节无符号整数
+                    field_bytes = self.parse_unsigned_int_field(field_text, 1, silent)
+                elif data_type == "I4":  # 4字节有符号整数
+                    field_bytes = self.parse_signed_int_field(field_text, 4, silent)
+                elif data_type == "R4":  # 4字节浮点数
+                    field_bytes = self.parse_float_field(field_text, 4, silent)
+                else:
+                    # 未知数据类型，使用默认值
+                    field_bytes = [0x00] * self.get_data_type_size(data_type)
+                
+                if field_bytes is None:
+                    return None
+                
+                payload_data.extend(field_bytes)
+            
+            return payload_data
+            
+        except Exception as e:
+            if not silent:
+                QMessageBox.warning(self, "警告", f"解析NAV2-CLK有效载荷失败: {str(e)}")
+            return None
+    
+    def parse_nav2_rvt_payload(self, silent=False):
+        """解析NAV2-RVT消息的有效载荷"""
+        try:
+            # 定义NAV2-RVT字段信息
+            nav2_rvt_fields = [
+                # 偏移, 数据类型, 最大长度, 名称, 单位, 描述
+                (0, "I4", 8, "rawTow", "ms", "原始接收机时间, GPS周内时的整毫秒部分"),
+                (4, "I4", 8, "rawTowSubms", "ms", "原始接收机时间, GPS周内时的小数毫秒部分"),
+                (8, "I4", 8, "dtuTow", "ms", "原始接收机时间误差的整数毫秒"),
+                (12, "I4", 8, "dtuTowSubms", "ms", "原始接收机时间误差的小数毫秒"),
+                (16, "I2", 4, "wn", "-", "原始接收机时间, GPS 周数"),
+                (18, "U1", 2, "towflag", "-", "时间的有效标志"),
+                (19, "U1", 2, "wnflag", "-", "周数的有效标志"),
+                (20, "U1", 2, "res1", "-", "保留"),
+                (21, "U1", 2, "ambflag", "-", "接收机整毫秒模糊度标志"),
+                (22, "U1", 2, "dtuflag", "-", "接收机时间误差的有效标志"),
+                (23, "U1", 2, "rvtRstTag", "-", "接收机时钟重置计数器"),
+                (24, "I4", 8, "rvtRst", "ms", "接收机时钟调整量"),
+                (28, "R4", 8, "tacc", "ns", "接收机的时间精度"),
+                (32, "I4", 8, "res5", "-", "保留"),
+                (36, "I4", 8, "res6", "-", "保留"),
+                (40, "R4", 8, "dtmeas", "s", "距上次定位测量的时间间隔"),
+                (44, "I1", 2, "res2", "-", "保留"),
+                (45, "I1", 2, "dtsBds2Gps", "s", "BDS和GPS 时间的整秒偏差"),
+                (46, "I1", 2, "dtsGln2Gps", "s", "GLONASS和GPS 时间的整秒偏差"),
+                (47, "I1", 2, "dtsGal2Gps", "s", "GALILEO和GPS 时间的整秒偏差"),
+                (48, "I1", 2, "dtsIrn2Gps", "s", "IRNSS和GPS 时间的整秒偏差"),
+                (49, "U1", 2, "res3", "-", "保留"),
+                (50, "U2", 4, "res4", "-", "保留")
+            ]
+            
+            payload_data = []
+            
+            for offset, data_type, max_length, name, unit, description in nav2_rvt_fields:
+                # 获取输入框的值
+                if name in self.nav2_rvt_inputs:
+                    field_text = self.nav2_rvt_inputs[name].text().strip()
+                else:
+                    field_text = ""
+                
+                # 根据数据类型解析字段
+                if data_type == "I4":  # 4字节有符号整数
+                    field_bytes = self.parse_signed_int_field(field_text, 4, silent)
+                elif data_type == "U4":  # 4字节无符号整数
+                    field_bytes = self.parse_unsigned_int_field(field_text, 4, silent)
+                elif data_type == "U2":  # 2字节无符号整数
+                    field_bytes = self.parse_unsigned_int_field(field_text, 2, silent)
+                elif data_type == "U1":  # 1字节无符号整数
+                    field_bytes = self.parse_unsigned_int_field(field_text, 1, silent)
+                elif data_type == "R4":  # 4字节浮点数
+                    field_bytes = self.parse_float_field(field_text, 4, silent)
+                elif data_type == "R8":  # 8字节浮点数
+                    field_bytes = self.parse_float_field(field_text, 8, silent)
+                else:
+                    # 未知数据类型，使用默认值
+                    field_bytes = [0x00] * self.get_data_type_size(data_type)
+                
+                if field_bytes is None:
+                    return None
+                
+                payload_data.extend(field_bytes)
+            
+            return payload_data
+            
+        except Exception as e:
+            if not silent:
+                QMessageBox.warning(self, "警告", f"解析NAV2-RVT有效载荷失败: {str(e)}")
+            return None
+    
+    def parse_nav2_rtc_payload(self, silent=False):
+        """解析NAV2-RTC消息的有效载荷"""
+        try:
+            # 定义NAV2-RTC字段信息
+            nav2_rtc_fields = [
+                # 偏移, 数据类型, 最大长度, 名称, 单位, 描述
+                (0, "I4", 8, "dtRtcTow", "ms", "RTC 时间误差,整数毫秒部分"),
+                (4, "I4", 8, "dtRtcTowSubms", "ms", "RTC 时间误差,小数毫秒部分"),
+                (8, "I4", 8, "rtcTow", "ms", "RTC 时间的整数毫秒"),
+                (12, "I4", 8, "rtcTowSubms", "ms", "RTC 时间的小数毫秒"),
+                (16, "I2", 4, "wn", "-", "RTC 时间,GPS 周数"),
+                (18, "U1", 2, "res1", "-", "保留"),
+                (19, "I1", 2, "leapSec", "s", "GPS 闰秒"),
+                (20, "I4", 8, "dfRtc", "Hz", "RTC 晶振频偏"),
+                (24, "U1", 2, "dfRtcFlag", "-", "RTC 晶振频偏的计算有效标志"),
+                (25, "U1", 2, "rtcSrc", "-", "RTC 时间校准的数据源"),
+                (26, "I2", 4, "res2", "-", "保留"),
+                (28, "I4", 8, "res3", "-", "保留")
+            ]
+            
+            payload_data = []
+            
+            for offset, data_type, max_length, name, unit, description in nav2_rtc_fields:
+                # 获取输入框的值
+                if name in self.nav2_rtc_inputs:
+                    field_text = self.nav2_rtc_inputs[name].text().strip()
+                else:
+                    field_text = ""
+                
+                # 根据数据类型解析字段
+                if data_type == "I4":  # 4字节有符号整数
+                    field_bytes = self.parse_signed_int_field(field_text, 4, silent)
+                elif data_type == "U4":  # 4字节无符号整数
+                    field_bytes = self.parse_unsigned_int_field(field_text, 4, silent)
+                elif data_type == "U2":  # 2字节无符号整数
+                    field_bytes = self.parse_unsigned_int_field(field_text, 2, silent)
+                elif data_type == "U1":  # 1字节无符号整数
+                    field_bytes = self.parse_unsigned_int_field(field_text, 1, silent)
+                elif data_type == "R4":  # 4字节浮点数
+                    field_bytes = self.parse_float_field(field_text, 4, silent)
+                elif data_type == "R8":  # 8字节浮点数
+                    field_bytes = self.parse_float_field(field_text, 8, silent)
+                else:
+                    # 未知数据类型，使用默认值
+                    field_bytes = [0x00] * self.get_data_type_size(data_type)
+                
+                if field_bytes is None:
+                    return None
+                
+                payload_data.extend(field_bytes)
+            
+            return payload_data
+            
+        except Exception as e:
+            if not silent:
+                QMessageBox.warning(self, "警告", f"解析NAV2-RTC有效载荷失败: {str(e)}")
             return None
