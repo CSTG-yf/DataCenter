@@ -1230,7 +1230,434 @@ class SendDataWindow(QMainWindow):
         rtc_scroll_area.setWidget(rtc_scroll_content)
         nav2_rtc_layout.addWidget(rtc_scroll_area)
         
-        # 初始时隐藏七个专用输入框
+        # NAV2-SAT消息的专用输入框
+        self.nav2_sat_widget = QWidget()
+        nav2_sat_layout = QVBoxLayout(self.nav2_sat_widget)
+        nav2_sat_layout.setContentsMargins(0, 0, 0, 0)
+        nav2_sat_layout.setSpacing(5)
+        
+        # NAV2-SAT标题
+        nav2_sat_title = QLabel("NAV2-SAT 消息有效载荷 (接收机所接收到的卫星信息):")
+        nav2_sat_title.setStyleSheet("""
+            QLabel {
+                font-size: 12px;
+                font-weight: bold;
+                color: #333333;
+                background-color: #e0f2f1;
+                border: 1px solid #4db6ac;
+                border-radius: 4px;
+                padding: 5px;
+            }
+        """)
+        nav2_sat_layout.addWidget(nav2_sat_title)
+        
+        # 固定部分字段
+        fixed_fields_frame = QFrame()
+        fixed_fields_frame.setStyleSheet("""
+            QFrame {
+                border: 2px solid #4db6ac;
+                border-radius: 8px;
+                background-color: #f8fdfc;
+                margin: 4px;
+                padding: 8px;
+            }
+        """)
+        fixed_fields_layout = QVBoxLayout(fixed_fields_frame)
+        fixed_fields_layout.setSpacing(8)
+        fixed_fields_layout.setContentsMargins(8, 8, 8, 8)
+        
+        fixed_fields_title = QLabel("固定部分 (12字节)")
+        fixed_fields_title.setStyleSheet("""
+            QLabel {
+                font-size: 12px;
+                font-weight: bold;
+                color: #00695c;
+                background-color: #e3f2fd;
+                border: 1px solid #4db6ac;
+                border-radius: 6px;
+                padding: 6px 12px;
+                margin: 2px;
+            }
+        """)
+        fixed_fields_layout.addWidget(fixed_fields_title)
+        
+        # 固定字段网格布局
+        fixed_fields_grid = QGridLayout()
+        fixed_fields_grid.setSpacing(6)
+        fixed_fields_grid.setContentsMargins(10, 5, 10, 10)
+        
+        # 定义固定字段信息
+        nav2_sat_fixed_fields = [
+            # 偏移, 数据类型, 最大长度, 名称, 单位, 描述
+            (0, "U4", 8, "tow", "ms", "GPS时间, 周内时"),
+            (4, "U1", 2, "numViewTot", "-", "可见卫星总数"),
+            (5, "U1", 2, "numFixTot", "-", "用于定位的卫星总数"),
+            (6, "U1", 2, "res1", "-", "保留"),
+            (7, "U1", 2, "res2", "-", "保留"),
+            (8, "U4", 8, "res3", "-", "保留")
+        ]
+        
+        # 创建固定字段输入框字典
+        self.nav2_sat_fixed_inputs = {}
+        
+        # 创建固定字段的输入框
+        for i, (offset, data_type, max_length, name, unit, description) in enumerate(nav2_sat_fixed_fields):
+            row = i // 2  # 每行2个字段
+            col = (i % 2) * 2  # 每2列为一组
+            
+            # 字段标签
+            label_text = f"{name} ({description})"
+            label = QLabel(label_text)
+            label.setStyleSheet("""
+            QLabel {
+                    font-size: 10px;
+                    color: #00695c;
+                    background-color: #e8f4fd;
+                    border: 1px solid #4db6ac;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    margin: 1px;
+                    font-weight: 500;
+                }
+            """)
+            label.setWordWrap(True)
+            label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            fixed_fields_grid.addWidget(label, row, col)
+            
+            # 输入框
+            input_field = QLineEdit()
+            input_field.setPlaceholderText(f"{max_length}位16进制")
+            input_field.setMaxLength(max_length)
+            input_field.setStyleSheet("""
+                QLineEdit {
+                    border: 2px solid #4db6ac;
+                    border-radius: 6px;
+                    padding: 6px 8px;
+                    background-color: white;
+                    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                    font-size: 10px;
+                    color: #333333;
+                    min-width: 110px;
+                    min-height: 20px;
+                }
+                QLineEdit:focus {
+                    border: 2px solid #2196F3;
+                    background-color: #fafafa;
+                }
+                QLineEdit:hover {
+                    border: 2px solid #26a69a;
+                }
+            """)
+            
+            # 连接信号
+            input_field.textChanged.connect(self.on_nav2_sat_changed)
+            input_field.textChanged.connect(self.validate_hex_input)
+            input_field.editingFinished.connect(self.auto_pad_hex_input)
+            
+            # 特殊处理numViewTot字段，用于动态控制卫星数量
+            if name == "numViewTot":
+                input_field.textChanged.connect(self.on_satellite_count_changed)
+                input_field.editingFinished.connect(self.on_satellite_count_finished)
+            
+            fixed_fields_grid.addWidget(input_field, row, col + 1)
+            
+            # 存储输入框引用
+            self.nav2_sat_fixed_inputs[name] = input_field
+        
+        fixed_fields_layout.addLayout(fixed_fields_grid)
+        nav2_sat_layout.addWidget(fixed_fields_frame)
+        
+        # 卫星信息重复部分
+        self.satellite_fields_frame = QFrame()
+        self.satellite_fields_frame.setStyleSheet("""
+            QFrame {
+                border: 2px solid #4db6ac;
+                border-radius: 8px;
+                background-color: #f8fdfc;
+                margin: 4px;
+                padding: 8px;
+            }
+        """)
+        self.satellite_fields_layout = QVBoxLayout(self.satellite_fields_frame)
+        self.satellite_fields_layout.setSpacing(8)
+        self.satellite_fields_layout.setContentsMargins(8, 8, 8, 8)
+        
+        self.satellite_fields_title = QLabel("卫星信息 (0颗卫星):")
+        self.satellite_fields_title.setStyleSheet("""
+            QLabel {
+                font-size: 12px;
+                font-weight: bold;
+                color: #00695c;
+                background-color: #e3f2fd;
+                border: 1px solid #4db6ac;
+                border-radius: 6px;
+                padding: 6px 12px;
+                margin: 2px;
+            }
+        """)
+        self.satellite_fields_layout.addWidget(self.satellite_fields_title)
+        
+        # 卫星字段的滚动区域
+        self.satellite_scroll_area = QScrollArea()
+        self.satellite_scroll_area.setWidgetResizable(True)
+        self.satellite_scroll_area.setMaximumHeight(300)  # 统一最大高度
+        self.satellite_scroll_area.setMinimumHeight(150)  # 统一最小高度
+        self.satellite_scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: 2px solid #4db6ac;
+                border-radius: 6px;
+                background-color: white;
+                margin: 2px;
+            }
+            QScrollBar:vertical {
+                background-color: #f0f0f0;
+                width: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #4db6ac;
+                border-radius: 6px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #26a69a;
+            }
+        """)
+        
+        # 卫星字段的内容部件
+        self.satellite_scroll_content = QWidget()
+        self.satellite_grid = QGridLayout(self.satellite_scroll_content)
+        self.satellite_grid.setSpacing(8)
+        self.satellite_grid.setContentsMargins(12, 12, 12, 12)
+        
+        self.satellite_scroll_area.setWidget(self.satellite_scroll_content)
+        self.satellite_fields_layout.addWidget(self.satellite_scroll_area)
+        
+        # 将卫星信息框架添加到主布局
+        nav2_sat_layout.addWidget(self.satellite_fields_frame)
+        
+        # 存储卫星输入框的字典列表
+        self.nav2_sat_satellite_inputs = []
+        
+        # NAV2-SIG 卫星信号信息组件
+        self.nav2_sig_widget = QFrame()
+        self.nav2_sig_widget.setStyleSheet("""
+            QFrame {
+                border: 2px solid #ff9800;
+                border-radius: 8px;
+                background-color: #fff3e0;
+                margin: 4px;
+                padding: 8px;
+            }
+        """)
+        nav2_sig_layout = QVBoxLayout(self.nav2_sig_widget)
+        nav2_sig_layout.setSpacing(8)
+        nav2_sig_layout.setContentsMargins(8, 8, 8, 8)
+        
+        # NAV2-SIG标题
+        nav2_sig_title = QLabel("NAV2-SIG 卫星信号信息")
+        nav2_sig_title.setStyleSheet("""
+            QLabel {
+                font-size: 14px;
+                font-weight: bold;
+                color: #e65100;
+                background-color: #ffcc02;
+                border: 1px solid #ff9800;
+                border-radius: 6px;
+                padding: 8px 16px;
+                margin: 2px;
+            }
+        """)
+        nav2_sig_layout.addWidget(nav2_sig_title)
+        
+        # 固定部分字段
+        sig_fixed_fields_frame = QFrame()
+        sig_fixed_fields_frame.setStyleSheet("""
+            QFrame {
+                border: 2px solid #ff9800;
+                border-radius: 8px;
+                background-color: #fff8e1;
+                margin: 4px;
+                padding: 8px;
+            }
+        """)
+        sig_fixed_fields_layout = QVBoxLayout(sig_fixed_fields_frame)
+        sig_fixed_fields_layout.setSpacing(8)
+        sig_fixed_fields_layout.setContentsMargins(8, 8, 8, 8)
+        
+        sig_fixed_fields_title = QLabel("固定部分 (8字节)")
+        sig_fixed_fields_title.setStyleSheet("""
+            QLabel {
+                font-size: 12px;
+                font-weight: bold;
+                color: #e65100;
+                background-color: #ffcc02;
+                border: 1px solid #ff9800;
+                border-radius: 6px;
+                padding: 6px 12px;
+                margin: 2px;
+            }
+        """)
+        sig_fixed_fields_layout.addWidget(sig_fixed_fields_title)
+        
+        # 固定字段网格布局
+        sig_fixed_fields_grid = QGridLayout()
+        sig_fixed_fields_grid.setSpacing(6)
+        sig_fixed_fields_grid.setContentsMargins(10, 5, 10, 10)
+        
+        # 定义固定字段信息
+        nav2_sig_fixed_fields = [
+            # 偏移, 数据类型, 最大长度, 名称, 单位, 描述
+            (0, "U4", 8, "tow", "ms", "GPS时间, 周内时"),
+            (4, "U1", 2, "res1", "-", "保留"),
+            (5, "U1", 2, "numTrkTot", "-", "跟踪信号总数"),
+            (6, "U1", 2, "numFixTot", "-", "用于定位的信号总数"),
+            (7, "U1", 2, "res2", "-", "保留")
+        ]
+        
+        # 创建固定字段输入框字典
+        self.nav2_sig_fixed_inputs = {}
+        
+        # 创建固定字段的输入框
+        for i, (offset, data_type, max_length, name, unit, description) in enumerate(nav2_sig_fixed_fields):
+            row = i // 2  # 每行2个字段
+            col = (i % 2) * 2  # 每2列为一组
+            
+            # 字段标签
+            label_text = f"{name} ({description})"
+            label = QLabel(label_text)
+            label.setStyleSheet("""
+                QLabel {
+                    font-size: 10px;
+                    color: #e65100;
+                    background-color: #ffecb3;
+                    border: 1px solid #ff9800;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    margin: 1px;
+                    font-weight: 500;
+                }
+            """)
+            label.setWordWrap(True)
+            label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            sig_fixed_fields_grid.addWidget(label, row, col)
+            
+            # 输入框
+            input_field = QLineEdit()
+            input_field.setPlaceholderText(f"{max_length}位16进制")
+            input_field.setMaxLength(max_length)
+            input_field.setStyleSheet("""
+                QLineEdit {
+                    border: 2px solid #ff9800;
+                    border-radius: 6px;
+                    padding: 6px 8px;
+                    background-color: white;
+                    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                    font-size: 10px;
+                    color: #333333;
+                    min-width: 110px;
+                    min-height: 20px;
+                }
+                QLineEdit:focus {
+                    border: 2px solid #2196F3;
+                    background-color: #fafafa;
+                }
+                QLineEdit:hover {
+                    border: 2px solid #ffb74d;
+                }
+            """)
+            
+            # 连接信号
+            input_field.textChanged.connect(self.on_nav2_sig_changed)
+            input_field.textChanged.connect(self.validate_hex_input)
+            input_field.editingFinished.connect(self.auto_pad_hex_input)
+            
+            # 特殊处理numTrkTot字段，用于动态控制信号数量
+            if name == "numTrkTot":
+                input_field.textChanged.connect(self.on_signal_count_changed)
+                input_field.editingFinished.connect(self.on_signal_count_finished)
+            
+            sig_fixed_fields_grid.addWidget(input_field, row, col + 1)
+            
+            # 存储输入框引用
+            self.nav2_sig_fixed_inputs[name] = input_field
+        
+        sig_fixed_fields_layout.addLayout(sig_fixed_fields_grid)
+        nav2_sig_layout.addWidget(sig_fixed_fields_frame)
+        
+        # 信号信息重复部分
+        self.signal_fields_frame = QFrame()
+        self.signal_fields_frame.setStyleSheet("""
+            QFrame {
+                border: 2px solid #ff9800;
+                border-radius: 8px;
+                background-color: #fff8e1;
+                margin: 4px;
+                padding: 8px;
+            }
+        """)
+        self.signal_fields_layout = QVBoxLayout(self.signal_fields_frame)
+        self.signal_fields_layout.setSpacing(8)
+        self.signal_fields_layout.setContentsMargins(8, 8, 8, 8)
+        
+        self.signal_fields_title = QLabel("信号信息 (0个信号):")
+        self.signal_fields_title.setStyleSheet("""
+            QLabel {
+                font-size: 12px;
+                font-weight: bold;
+                color: #e65100;
+                background-color: #ffcc02;
+                border: 1px solid #ff9800;
+                border-radius: 6px;
+                padding: 6px 12px;
+                margin: 2px;
+            }
+        """)
+        self.signal_fields_layout.addWidget(self.signal_fields_title)
+        
+        # 信号字段的滚动区域
+        self.signal_scroll_area = QScrollArea()
+        self.signal_scroll_area.setWidgetResizable(True)
+        self.signal_scroll_area.setMaximumHeight(300)  # 统一最大高度
+        self.signal_scroll_area.setMinimumHeight(150)  # 统一最小高度
+        self.signal_scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: 2px solid #ff9800;
+                border-radius: 6px;
+                background-color: white;
+                margin: 2px;
+            }
+            QScrollBar:vertical {
+                background-color: #f0f0f0;
+                width: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #ff9800;
+                border-radius: 6px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #f57c00;
+            }
+        """)
+        
+        # 信号字段的内容部件
+        self.signal_scroll_content = QWidget()
+        self.signal_grid = QGridLayout(self.signal_scroll_content)
+        self.signal_grid.setSpacing(8)
+        self.signal_grid.setContentsMargins(12, 12, 12, 12)
+        
+        self.signal_scroll_area.setWidget(self.signal_scroll_content)
+        self.signal_fields_layout.addWidget(self.signal_scroll_area)
+        
+        # 将信号信息框架添加到主布局
+        nav2_sig_layout.addWidget(self.signal_fields_frame)
+        
+        # 存储信号输入框的字典列表
+        self.nav2_sig_signal_inputs = []
+        
+        # 初始时隐藏九个专用输入框
         self.nav2_dop_widget.hide()
         self.nav2_sol_widget.hide()
         self.nav2_pvh_widget.hide()
@@ -1238,6 +1665,8 @@ class SendDataWindow(QMainWindow):
         self.nav2_clk_widget.hide()
         self.nav2_rvt_widget.hide()
         self.nav2_rtc_widget.hide()
+        self.nav2_sat_widget.hide()
+        self.nav2_sig_widget.hide()
         
         # 将两个输入方式添加到有效载荷布局中
         payload_layout.addWidget(self.payload_input)
@@ -1248,6 +1677,8 @@ class SendDataWindow(QMainWindow):
         payload_layout.addWidget(self.nav2_clk_widget)
         payload_layout.addWidget(self.nav2_rvt_widget)
         payload_layout.addWidget(self.nav2_rtc_widget)
+        payload_layout.addWidget(self.nav2_sat_widget)
+        payload_layout.addWidget(self.nav2_sig_widget)
         
         fields_grid.addWidget(payload_widget, 4, 1)
         
@@ -1295,52 +1726,6 @@ class SendDataWindow(QMainWindow):
         packet_layout.addWidget(help_label)
         
         layout.addWidget(packet_frame)
-        
-        # 数据包预览区域
-        preview_frame = QFrame()
-        preview_frame.setStyleSheet("""
-            QFrame {
-                border: 2px solid #e0e0e0;
-                border-radius: 8px;
-                background-color: #f8f9fa;
-            }
-        """)
-        
-        preview_layout = QVBoxLayout(preview_frame)
-        preview_layout.setContentsMargins(15, 15, 15, 15)
-        
-        # 预览标签
-        preview_label = QLabel("完整数据包预览:")
-        preview_label.setStyleSheet("""
-            QLabel {
-                font-size: 14px;
-                font-weight: bold;
-                color: #333333;
-                background-color: transparent;
-                border: none;
-                margin-bottom: 10px;
-            }
-        """)
-        preview_layout.addWidget(preview_label)
-        
-        # 预览文本框
-        self.preview_text = QTextEdit()
-        self.preview_text.setReadOnly(True)
-        self.preview_text.setStyleSheet("""
-            QTextEdit {
-                border: 1px solid #d0d0d0;
-                border-radius: 4px;
-                padding: 10px;
-                background-color: #f5f5f5;
-                font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-                font-size: 12px;
-                color: #333333;
-            }
-        """)
-        self.preview_text.setMaximumHeight(120)
-        preview_layout.addWidget(self.preview_text)
-        
-        layout.addWidget(preview_frame)
         
         # 发送选项区域
         options_frame = QFrame()
@@ -1609,6 +1994,24 @@ class SendDataWindow(QMainWindow):
         for input_field in self.nav2_rtc_inputs.values():
             input_field.clear()
         
+        # 清空NAV2-SAT输入框
+        for input_field in self.nav2_sat_fixed_inputs.values():
+            input_field.clear()
+        for satellite_inputs in self.nav2_sat_satellite_inputs:
+            for input_field in satellite_inputs.values():
+                input_field.clear()
+        self.nav2_sat_satellite_inputs.clear()
+        self.update_satellite_fields(0)
+        
+        # 清空NAV2-SIG输入框
+        for input_field in self.nav2_sig_fixed_inputs.values():
+            input_field.clear()
+        for signal_inputs in self.nav2_sig_signal_inputs:
+            for input_field in signal_inputs.values():
+                input_field.clear()
+        self.nav2_sig_signal_inputs.clear()
+        self.update_signal_fields(0)
+        
         # 重新设置消息ID选项
         self.on_class_changed()
         
@@ -1645,6 +2048,7 @@ class SendDataWindow(QMainWindow):
                 self.nav2_clk_widget.hide()
                 self.nav2_rvt_widget.hide()
                 self.nav2_rtc_widget.hide()
+                self.nav2_sat_widget.hide()
                 self.payload_input.hide() # 隐藏默认的payload输入框
             elif class_value == 0x11 and id_value == 0x02: # NAV2-SOL
                 self.nav2_dop_widget.hide()
@@ -1654,6 +2058,7 @@ class SendDataWindow(QMainWindow):
                 self.nav2_clk_widget.hide()
                 self.nav2_rvt_widget.hide()
                 self.nav2_rtc_widget.hide()
+                self.nav2_sat_widget.hide()
                 self.payload_input.hide() # 隐藏默认的payload输入框
             elif class_value == 0x11 and id_value == 0x03: # NAV2-PVH
                 self.nav2_dop_widget.hide()
@@ -1663,6 +2068,7 @@ class SendDataWindow(QMainWindow):
                 self.nav2_clk_widget.hide()
                 self.nav2_rvt_widget.hide()
                 self.nav2_rtc_widget.hide()
+                self.nav2_sat_widget.hide()
                 self.payload_input.hide() # 隐藏默认的payload输入框
             elif class_value == 0x11 and id_value == 0x05: # NAV2-TIMEUTC
                 self.nav2_dop_widget.hide()
@@ -1672,6 +2078,7 @@ class SendDataWindow(QMainWindow):
                 self.nav2_clk_widget.hide()
                 self.nav2_rvt_widget.hide()
                 self.nav2_rtc_widget.hide()
+                self.nav2_sat_widget.hide()
                 self.payload_input.hide() # 隐藏默认的payload输入框
             elif class_value == 0x11 and id_value == 0x07: # NAV2-CLK
                 self.nav2_dop_widget.hide()
@@ -1681,6 +2088,7 @@ class SendDataWindow(QMainWindow):
                 self.nav2_clk_widget.show()
                 self.nav2_rvt_widget.hide()
                 self.nav2_rtc_widget.hide()
+                self.nav2_sat_widget.hide()
                 self.payload_input.hide()
             elif class_value == 0x11 and id_value == 0x08: # NAV2-RVT
                 self.nav2_dop_widget.hide()
@@ -1690,6 +2098,7 @@ class SendDataWindow(QMainWindow):
                 self.nav2_clk_widget.hide()
                 self.nav2_rvt_widget.show()
                 self.nav2_rtc_widget.hide()
+                self.nav2_sat_widget.hide()
                 self.payload_input.hide()
             elif class_value == 0x11 and id_value == 0x09: # NAV2-RTC
                 self.nav2_dop_widget.hide()
@@ -1699,6 +2108,17 @@ class SendDataWindow(QMainWindow):
                 self.nav2_clk_widget.hide()
                 self.nav2_rvt_widget.hide()
                 self.nav2_rtc_widget.show()
+                self.nav2_sat_widget.hide()
+                self.payload_input.hide()
+            elif class_value == 0x11 and id_value == 0x04: # NAV2-SAT
+                self.nav2_dop_widget.hide()
+                self.nav2_sol_widget.hide()
+                self.nav2_pvh_widget.hide()
+                self.nav2_timeutc_widget.hide()
+                self.nav2_clk_widget.hide()
+                self.nav2_rvt_widget.hide()
+                self.nav2_rtc_widget.hide()
+                self.nav2_sat_widget.show()
                 self.payload_input.hide()
             else:
                 self.nav2_dop_widget.hide()
@@ -1708,6 +2128,7 @@ class SendDataWindow(QMainWindow):
                 self.nav2_clk_widget.hide()
                 self.nav2_rvt_widget.hide()
                 self.nav2_rtc_widget.hide()
+                self.nav2_sat_widget.hide()
                 self.payload_input.show() # 显示默认的payload输入框
 
             # 获取有效载荷数据
@@ -1760,23 +2181,34 @@ class SendDataWindow(QMainWindow):
                 payload_data = self.parse_nav2_rtc_payload(silent)
                 if payload_data is None:
                     return None
+            elif self.nav2_sat_widget.isVisible():
+                # NAV2-SAT消息：根据字段类型解析
+                payload_data = self.parse_nav2_sat_payload(silent)
+                if payload_data is None:
+                    return None
+            elif self.nav2_sig_widget.isVisible():
+                # NAV2-SIG消息：根据字段类型解析
+                payload_data = self.parse_nav2_sig_payload(silent)
+                if payload_data is None:
+                    return None
             else:
+                # 使用默认的payload输入框
                 payload_text = self.payload_input.toPlainText().strip()
-                if not payload_text:
-                    payload_data = []
-                else:
-                    payload_data = self.parse_hex_payload(payload_text, silent)
-                    if payload_data is None:
-                        return None
-                    
-                    # 检查有效载荷长度是否为4的倍数
-                    if len(payload_data) % 4 != 0:
-                        if not silent:
-                            QMessageBox.warning(self, "警告", "有效载荷长度必须是4的倍数")
-                        return None
+            if not payload_text:
+                payload_data = []
+            else:
+                payload_data = self.parse_hex_payload(payload_text, silent)
+                if payload_data is None:
+                    return None
+                
+                # 检查有效载荷长度是否为4的倍数
+                if len(payload_data) % 4 != 0:
+                    if not silent:
+                        QMessageBox.warning(self, "警告", "有效载荷长度必须是4的倍数")
+                    return None
             
             # 计算有效载荷长度（字节数）
-            payload_length = len(payload_data)
+            payload_length = self.calculate_payload_length(class_value, id_value, silent)
             
             # 计算校验值
             checksum = self.calculate_checksum(class_value, id_value, payload_length, payload_data)
@@ -1803,13 +2235,9 @@ class SendDataWindow(QMainWindow):
             packet.extend([checksum & 0xFF, (checksum >> 8) & 0xFF, 
                           (checksum >> 16) & 0xFF, (checksum >> 24) & 0xFF])
             
-            # 转换为十六进制字符串
-            hex_packet = ' '.join([f"{b:02X}" for b in packet])
             
-            # 更新预览
-            self.preview_text.setPlainText(hex_packet)
             
-            return hex_packet
+            return packet
             
         except Exception as e:
             # 静默处理错误，不显示警告
@@ -1990,6 +2418,80 @@ class SendDataWindow(QMainWindow):
                 QMessageBox.warning(self, "警告", f"字段 {text} 不是有效的16进制数")
             return None
     
+    def calculate_payload_length(self, class_value, id_value, silent=False):
+        """计算有效载荷长度（字节数）"""
+        try:
+            if class_value == 0x11:  # NAV2消息类
+                if id_value == 0x01:  # NAV2-DOP
+                    return 24  # 固定长度：24字节
+                elif id_value == 0x02:  # NAV2-SOL
+                    return 72  # 固定长度：72字节
+                elif id_value == 0x03:  # NAV2-PVH
+                    return 88  # 固定长度：88字节 (根据技术规范)
+                elif id_value == 0x04:  # NAV2-SAT
+                    # 动态长度：12 + 12×N字节 (N = numViewTot)
+                    if hasattr(self, 'nav2_sat_fixed_inputs') and 'numViewTot' in self.nav2_sat_fixed_inputs:
+                        num_view_tot_text = self.nav2_sat_fixed_inputs['numViewTot'].text().strip()
+                        if num_view_tot_text:
+                            try:
+                                num_view_tot = int(num_view_tot_text, 16)
+                                return 12 + 12 * num_view_tot
+                            except ValueError:
+                                if not silent:
+                                    print(f"无法解析numViewTot值: {num_view_tot_text}")
+                                return 12  # 默认只有固定部分
+                        else:
+                            return 12  # 默认只有固定部分
+                    else:
+                        return 12  # 默认只有固定部分
+                elif id_value == 0x05:  # NAV2-TIMEUTC
+                    return 20  # 固定长度：20字节 (根据技术规范)
+                elif id_value == 0x06:  # NAV2-SIG
+                    # 动态长度：8 + 16×N字节 (N = numTrkTot)
+                    if hasattr(self, 'nav2_sig_fixed_inputs') and 'numTrkTot' in self.nav2_sig_fixed_inputs:
+                        num_trk_tot_text = self.nav2_sig_fixed_inputs['numTrkTot'].text().strip()
+                        if num_trk_tot_text:
+                            try:
+                                num_trk_tot = int(num_trk_tot_text, 16)
+                                return 8 + 16 * num_trk_tot
+                            except ValueError:
+                                if not silent:
+                                    print(f"无法解析numTrkTot值: {num_trk_tot_text}")
+                                return 8  # 默认只有固定部分
+                        else:
+                            return 8  # 默认只有固定部分
+                    else:
+                        return 8  # 默认只有固定部分
+                elif id_value == 0x07:  # NAV2-CLK
+                    return 20  # 固定长度：20字节 (根据技术规范)
+                elif id_value == 0x08:  # NAV2-RVT
+                    return 52  # 固定长度：52字节 (根据技术规范)
+                elif id_value == 0x09:  # NAV2-RTC
+                    return 32  # 固定长度：32字节 (根据技术规范)
+                else:
+                    # 其他NAV2消息ID，使用默认payload输入框
+                    if hasattr(self, 'payload_input'):
+                        payload_text = self.payload_input.toPlainText().strip()
+                        if payload_text:
+                            payload_data = self.parse_hex_payload(payload_text, silent)
+                            if payload_data is not None:
+                                return len(payload_data)
+                    return 0
+            else:
+                # 非NAV2消息类，使用默认payload输入框
+                if hasattr(self, 'payload_input'):
+                    payload_text = self.payload_input.toPlainText().strip()
+                    if payload_text:
+                        payload_data = self.parse_hex_payload(payload_text, silent)
+                        if payload_data is not None:
+                            return len(payload_data)
+                return 0
+                
+        except Exception as e:
+            if not silent:
+                print(f"计算有效载荷长度失败: {str(e)}")
+            return 0
+    
     def calculate_checksum(self, class_value, id_value, payload_length, payload_data):
         """计算校验值"""
         # 按照算法: ckSum = (id << 24) + (class << 16) + len
@@ -2038,6 +2540,7 @@ class SendDataWindow(QMainWindow):
                 self.nav2_clk_widget.hide()
                 self.nav2_rvt_widget.hide()
                 self.nav2_rtc_widget.hide()
+                self.nav2_sat_widget.hide()
                 self.payload_input.hide() # 隐藏默认的payload输入框
             elif class_value == 0x11 and id_value == 0x02: # NAV2-SOL
                 self.nav2_dop_widget.hide()
@@ -2047,6 +2550,7 @@ class SendDataWindow(QMainWindow):
                 self.nav2_clk_widget.hide()
                 self.nav2_rvt_widget.hide()
                 self.nav2_rtc_widget.hide()
+                self.nav2_sat_widget.hide()
                 self.payload_input.hide() # 隐藏默认的payload输入框
             elif class_value == 0x11 and id_value == 0x03: # NAV2-PVH
                 self.nav2_dop_widget.hide()
@@ -2056,6 +2560,7 @@ class SendDataWindow(QMainWindow):
                 self.nav2_clk_widget.hide()
                 self.nav2_rvt_widget.hide()
                 self.nav2_rtc_widget.hide()
+                self.nav2_sat_widget.hide()
                 self.payload_input.hide() # 隐藏默认的payload输入框
             elif class_value == 0x11 and id_value == 0x05: # NAV2-TIMEUTC
                 self.nav2_dop_widget.hide()
@@ -2065,6 +2570,7 @@ class SendDataWindow(QMainWindow):
                 self.nav2_clk_widget.hide()
                 self.nav2_rvt_widget.hide()
                 self.nav2_rtc_widget.hide()
+                self.nav2_sat_widget.hide()
                 self.payload_input.hide() # 隐藏默认的payload输入框
             elif class_value == 0x11 and id_value == 0x07: # NAV2-CLK
                 self.nav2_dop_widget.hide()
@@ -2074,6 +2580,7 @@ class SendDataWindow(QMainWindow):
                 self.nav2_clk_widget.show()
                 self.nav2_rvt_widget.hide()
                 self.nav2_rtc_widget.hide()
+                self.nav2_sat_widget.hide()
                 self.payload_input.hide()
             elif class_value == 0x11 and id_value == 0x08: # NAV2-RVT
                 self.nav2_dop_widget.hide()
@@ -2083,6 +2590,7 @@ class SendDataWindow(QMainWindow):
                 self.nav2_clk_widget.hide()
                 self.nav2_rvt_widget.show()
                 self.nav2_rtc_widget.hide()
+                self.nav2_sat_widget.hide()
                 self.payload_input.hide()
             elif class_value == 0x11 and id_value == 0x09: # NAV2-RTC
                 self.nav2_dop_widget.hide()
@@ -2092,6 +2600,17 @@ class SendDataWindow(QMainWindow):
                 self.nav2_clk_widget.hide()
                 self.nav2_rvt_widget.hide()
                 self.nav2_rtc_widget.show()
+                self.nav2_sat_widget.hide()
+                self.payload_input.hide()
+            elif class_value == 0x11 and id_value == 0x04: # NAV2-SAT
+                self.nav2_dop_widget.hide()
+                self.nav2_sol_widget.hide()
+                self.nav2_pvh_widget.hide()
+                self.nav2_timeutc_widget.hide()
+                self.nav2_clk_widget.hide()
+                self.nav2_rvt_widget.hide()
+                self.nav2_rtc_widget.hide()
+                self.nav2_sat_widget.show()
                 self.payload_input.hide()
             else:
                 self.nav2_dop_widget.hide()
@@ -2101,6 +2620,7 @@ class SendDataWindow(QMainWindow):
                 self.nav2_clk_widget.hide()
                 self.nav2_rvt_widget.hide()
                 self.nav2_rtc_widget.hide()
+                self.nav2_sat_widget.hide()
                 self.payload_input.show() # 显示默认的payload输入框
 
             # 获取有效载荷数据
@@ -2153,30 +2673,50 @@ class SendDataWindow(QMainWindow):
                 payload_data = self.parse_nav2_rtc_payload(silent)
                 if payload_data is None:
                     return None
-            else:
-                payload_text = self.payload_input.toPlainText().strip()
-                if not payload_text:
-                    self.length_input.setText("0 字节 (0x0000)")
-                    self.checksum_input.setText(f"0x{(id_value << 24) + (class_value << 16):08X}")
-                    self.preview_text.setPlainText("请输入有效载荷数据")
-                    return
-                
-                payload_data = self.parse_hex_payload(payload_text, silent)
+            elif self.nav2_sat_widget.isVisible():
+                # NAV2-SAT消息：根据字段类型解析
+                payload_data = self.parse_nav2_sat_payload(silent)
                 if payload_data is None:
-                    return
+                    return None
+            elif self.nav2_sig_widget.isVisible():
+                # NAV2-SIG消息：根据字段类型解析
+                payload_data = self.parse_nav2_sig_payload(silent)
+                if payload_data is None:
+                    return None
+            else:
+                # 使用默认的payload输入框
+                payload_text = self.payload_input.toPlainText().strip()
+            if not payload_text:
+                self.length_input.setText("0 字节 (0x0000)")
+                self.checksum_input.setText(f"0x{(id_value << 24) + (class_value << 16):08X}")
+                return
+            
+            payload_data = self.parse_hex_payload(payload_text, silent)
+            if payload_data is None:
+                    return None
             
             # 构建完整数据包
             packet_data = self.build_csip_packet(silent)
             if packet_data:
                 # 更新长度和校验值显示
-                payload_length = len(payload_data)
+                payload_length = self.calculate_payload_length(class_value, id_value, silent)
                 checksum = self.calculate_checksum(class_value, id_value, payload_length, payload_data)
                 
                 self.length_input.setText(f"{payload_length} 字节 (0x{payload_length:04X})")
                 self.checksum_input.setText(f"0x{checksum:08X}")
+            else:
+                # 即使构建数据包失败，也要显示载荷长度
+                payload_length = self.calculate_payload_length(class_value, id_value, silent)
+                self.length_input.setText(f"{payload_length} 字节 (0x{payload_length:04X})")
+                # 计算只有头部和长度的校验值
+                checksum = (id_value << 24) + (class_value << 16) + payload_length
+                self.checksum_input.setText(f"0x{checksum:08X}")
+
         except Exception as e:
             # 静默处理错误，不显示警告
             pass
+    
+
     
     def on_class_changed(self):
         """当消息类改变时，更新消息ID选项"""
@@ -2381,7 +2921,8 @@ class SendDataWindow(QMainWindow):
             self.payload_input.show()
         
         # 重新连接信号
-        self.id_combo.currentTextChanged.connect(self.update_packet_preview)
+        self.id_combo.currentTextChanged.connect(self.update_packet_preview) 
+        self.id_combo.currentTextChanged.connect(self.check_nav2_dop_visibility) 
         
         # 检查是否需要显示NAV2-DOP专用输入框
         self.check_nav2_dop_visibility()
@@ -2401,6 +2942,8 @@ class SendDataWindow(QMainWindow):
                     self.nav2_clk_widget.hide()
                     self.nav2_rvt_widget.hide()
                     self.nav2_rtc_widget.hide()
+                    self.nav2_sat_widget.hide()
+                    self.nav2_sig_widget.hide()
                     self.payload_input.hide()
                 elif id_value == 0x02:  # NAV2-SOL
                     self.nav2_dop_widget.hide()
@@ -2410,6 +2953,8 @@ class SendDataWindow(QMainWindow):
                     self.nav2_clk_widget.hide()
                     self.nav2_rvt_widget.hide()
                     self.nav2_rtc_widget.hide()
+                    self.nav2_sat_widget.hide()
+                    self.nav2_sig_widget.hide()
                     self.payload_input.hide()
                 elif id_value == 0x03:  # NAV2-PVH
                     self.nav2_dop_widget.hide()
@@ -2419,6 +2964,8 @@ class SendDataWindow(QMainWindow):
                     self.nav2_clk_widget.hide()
                     self.nav2_rvt_widget.hide()
                     self.nav2_rtc_widget.hide()
+                    self.nav2_sat_widget.hide()
+                    self.nav2_sig_widget.hide()
                     self.payload_input.hide()
                 elif id_value == 0x05:  # NAV2-TIMEUTC
                     self.nav2_dop_widget.hide()
@@ -2428,6 +2975,8 @@ class SendDataWindow(QMainWindow):
                     self.nav2_clk_widget.hide()
                     self.nav2_rvt_widget.hide()
                     self.nav2_rtc_widget.hide()
+                    self.nav2_sat_widget.hide()
+                    self.nav2_sig_widget.hide()
                     self.payload_input.hide()
                 elif id_value == 0x07:  # NAV2-CLK
                     self.nav2_dop_widget.hide()
@@ -2437,6 +2986,8 @@ class SendDataWindow(QMainWindow):
                     self.nav2_clk_widget.show()
                     self.nav2_rvt_widget.hide()
                     self.nav2_rtc_widget.hide()
+                    self.nav2_sat_widget.hide()
+                    self.nav2_sig_widget.hide()
                     self.payload_input.hide()
                 elif id_value == 0x08:  # NAV2-RVT
                     self.nav2_dop_widget.hide()
@@ -2446,6 +2997,8 @@ class SendDataWindow(QMainWindow):
                     self.nav2_clk_widget.hide()
                     self.nav2_rvt_widget.show()
                     self.nav2_rtc_widget.hide()
+                    self.nav2_sat_widget.hide()
+                    self.nav2_sig_widget.hide()
                     self.payload_input.hide()
                 elif id_value == 0x09:  # NAV2-RTC
                     self.nav2_dop_widget.hide()
@@ -2455,6 +3008,30 @@ class SendDataWindow(QMainWindow):
                     self.nav2_clk_widget.hide()
                     self.nav2_rvt_widget.hide()
                     self.nav2_rtc_widget.show()
+                    self.nav2_sat_widget.hide()
+                    self.nav2_sig_widget.hide()
+                    self.payload_input.hide()
+                elif id_value == 0x04:  # NAV2-SAT
+                    self.nav2_dop_widget.hide()
+                    self.nav2_sol_widget.hide()
+                    self.nav2_pvh_widget.hide()
+                    self.nav2_timeutc_widget.hide()
+                    self.nav2_clk_widget.hide()
+                    self.nav2_rvt_widget.hide()
+                    self.nav2_rtc_widget.hide()
+                    self.nav2_sat_widget.show()
+                    self.nav2_sig_widget.hide()
+                    self.payload_input.hide()
+                elif id_value == 0x06:  # NAV2-SIG
+                    self.nav2_dop_widget.hide()
+                    self.nav2_sol_widget.hide()
+                    self.nav2_pvh_widget.hide()
+                    self.nav2_timeutc_widget.hide()
+                    self.nav2_clk_widget.hide()
+                    self.nav2_rvt_widget.hide()
+                    self.nav2_rtc_widget.hide()
+                    self.nav2_sat_widget.hide()
+                    self.nav2_sig_widget.show()
                     self.payload_input.hide()
                 else:
                     # 其他NAV2消息ID
@@ -2465,6 +3042,8 @@ class SendDataWindow(QMainWindow):
                     self.nav2_clk_widget.hide()
                     self.nav2_rvt_widget.hide()
                     self.nav2_rtc_widget.hide()
+                    self.nav2_sat_widget.hide()
+                    self.nav2_sig_widget.hide()
                     self.payload_input.show()
             else:
                 # 非NAV2消息类
@@ -2475,7 +3054,13 @@ class SendDataWindow(QMainWindow):
                 self.nav2_clk_widget.hide()
                 self.nav2_rvt_widget.hide()
                 self.nav2_rtc_widget.hide()
+                self.nav2_sat_widget.hide()
+                self.nav2_sig_widget.hide()
                 self.payload_input.show()
+                
+            # 调整窗口大小，确保所有组件都能正确显示
+            QTimer.singleShot(50, self.adjust_window_size)
+                
         except:
             # 如果解析失败，默认隐藏专用输入框
             self.nav2_dop_widget.hide()
@@ -2485,7 +3070,12 @@ class SendDataWindow(QMainWindow):
             self.nav2_clk_widget.hide()
             self.nav2_rvt_widget.hide()
             self.nav2_rtc_widget.hide()
+            self.nav2_sat_widget.hide()
+            self.nav2_sig_widget.hide()
             self.payload_input.show()
+            
+            # 调整窗口大小
+            QTimer.singleShot(50, self.adjust_window_size)
     
     def on_nav2_dop_changed(self):
         """当NAV2-DOP消息的有效载荷输入框内容改变时，更新预览"""
@@ -2513,6 +3103,14 @@ class SendDataWindow(QMainWindow):
     
     def on_nav2_rtc_changed(self):
         """当NAV2-RTC消息的有效载荷输入框内容改变时，更新预览"""
+        self.update_packet_preview()
+    
+    def on_nav2_sat_changed(self):
+        """当NAV2-SAT消息的有效载荷输入框内容改变时，更新预览"""
+        self.update_packet_preview()
+    
+    def on_nav2_sig_changed(self):
+        """当NAV2-SIG消息的有效载荷输入框内容改变时，更新预览"""
         self.update_packet_preview()
 
     def validate_hex_input(self):
@@ -3079,3 +3677,607 @@ class SendDataWindow(QMainWindow):
             if not silent:
                 QMessageBox.warning(self, "警告", f"解析NAV2-RTC有效载荷失败: {str(e)}")
             return None
+    
+    def parse_nav2_sat_payload(self, silent=False):
+        """解析NAV2-SAT消息的有效载荷"""
+        try:
+            # 定义NAV2-SAT固定字段信息
+            nav2_sat_fixed_fields = [
+                # 偏移, 数据类型, 最大长度, 名称, 单位, 描述
+                (0, "U4", 8, "tow", "ms", "GPS时间, 周内时"),
+                (4, "U1", 2, "numViewTot", "-", "可见卫星总数"),
+                (5, "U1", 2, "numFixTot", "-", "用于定位的卫星总数"),
+                (6, "U1", 2, "res1", "-", "保留"),
+                (7, "U1", 2, "res2", "-", "保留"),
+                (8, "U4", 8, "res3", "-", "保留")
+            ]
+            
+            payload_data = []
+            
+            # 解析固定字段
+            for offset, data_type, max_length, name, unit, description in nav2_sat_fixed_fields:
+                # 获取输入框的值
+                if name in self.nav2_sat_fixed_inputs:
+                    field_text = self.nav2_sat_fixed_inputs[name].text().strip()
+                else:
+                    field_text = ""
+                
+                # 根据数据类型解析字段
+                if data_type == "U4":  # 4字节无符号整数
+                    field_bytes = self.parse_unsigned_int_field(field_text, 4, silent)
+                elif data_type == "U1":  # 1字节无符号整数
+                    field_bytes = self.parse_unsigned_int_field(field_text, 1, silent)
+                else:
+                    # 未知数据类型，使用默认值
+                    field_bytes = [0x00] * self.get_data_type_size(data_type)
+                
+                if field_bytes is None:
+                    return None
+                
+                payload_data.extend(field_bytes)
+            
+            # 解析卫星数据字段
+            for satellite_inputs in self.nav2_sat_satellite_inputs:
+                # 定义卫星字段信息
+                satellite_field_definitions = [
+                    # 名称, 数据类型, 最大长度, 单位, 描述
+                    ("chn", "U1", 2, "-", "跟踪通道号"),
+                    ("svid", "U1", 2, "-", "卫星编号"),
+                    ("gnssid", "U1", 2, "-", "卫星系统标识符"),
+                    ("flagx", "U1", 2, "-", "卫星状态标志"),
+                    ("quality", "U1", 2, "-", "信号质量"),
+                    ("cn0", "U1", 2, "dBHz", "载噪比"),
+                    ("sigid", "U1", 2, "-", "卫星信号标识符"),
+                    ("elevation", "U1", 2, "度", "卫星仰角"),
+                    ("azimuth", "U2", 4, "度", "卫星方位角"),
+                    ("prresi", "I2", 4, "dm", "伪距误差")
+                ]
+                
+                for name, data_type, max_length, unit, description in satellite_field_definitions:
+                    # 获取输入框的值
+                    if name in satellite_inputs:
+                        field_text = satellite_inputs[name].text().strip()
+                    else:
+                        field_text = ""
+                    
+                    # 根据数据类型解析字段
+                    if data_type == "U1":  # 1字节无符号整数
+                        field_bytes = self.parse_unsigned_int_field(field_text, 1, silent)
+                    elif data_type == "U2":  # 2字节无符号整数
+                        field_bytes = self.parse_unsigned_int_field(field_text, 2, silent)
+                    elif data_type == "I2":  # 2字节有符号整数
+                        field_bytes = self.parse_signed_int_field(field_text, 2, silent)
+                    else:
+                        # 未知数据类型，使用默认值
+                        field_bytes = [0x00] * self.get_data_type_size(data_type)
+                    
+                    if field_bytes is None:
+                        return None
+                    
+                    payload_data.extend(field_bytes)
+            
+            return payload_data
+            
+        except Exception as e:
+            if not silent:
+                QMessageBox.warning(self, "警告", f"解析NAV2-SAT有效载荷失败: {str(e)}")
+            return None
+    
+    def parse_nav2_sig_payload(self, silent=False):
+        """解析NAV2-SIG消息的有效载荷"""
+        try:
+            # 定义NAV2-SIG固定字段信息
+            nav2_sig_fixed_fields = [
+                # 偏移, 数据类型, 最大长度, 名称, 单位, 描述
+                (0, "U4", 8, "tow", "ms", "GPS时间, 周内时"),
+                (4, "U1", 2, "res1", "-", "保留"),
+                (5, "U1", 2, "numTrkTot", "-", "跟踪信号总数"),
+                (6, "U1", 2, "numFixTot", "-", "用于定位的信号总数"),
+                (7, "U1", 2, "res2", "-", "保留")
+            ]
+            
+            payload_data = []
+            
+            # 解析固定字段
+            for offset, data_type, max_length, name, unit, description in nav2_sig_fixed_fields:
+                # 获取输入框的值
+                if name in self.nav2_sig_fixed_inputs:
+                    field_text = self.nav2_sig_fixed_inputs[name].text().strip()
+                else:
+                    field_text = ""
+                
+                # 根据数据类型解析字段
+                if data_type == "U4":  # 4字节无符号整数
+                    field_bytes = self.parse_unsigned_int_field(field_text, 4, silent)
+                elif data_type == "U1":  # 1字节无符号整数
+                    field_bytes = self.parse_unsigned_int_field(field_text, 1, silent)
+                else:
+                    # 未知数据类型，使用默认值
+                    field_bytes = [0x00] * self.get_data_type_size(data_type)
+                
+                if field_bytes is None:
+                    return None
+                
+                payload_data.extend(field_bytes)
+            
+            # 解析重复的信号字段
+            for signal_inputs in self.nav2_sig_signal_inputs:
+                # 定义信号字段信息
+                signal_field_definitions = [
+                    # 名称, 数据类型, 最大长度, 单位, 描述
+                    ("gnssid", "U1", 2, "-", "卫星系统标识符"),
+                    ("svid", "U1", 2, "-", "卫星编号"),
+                    ("sigid", "U1", 2, "-", "卫星信号标识符"),
+                    ("freqid", "U1", 2, "-", "卫星信号标识符"),
+                    ("prResi", "I2", 4, "dm", "伪距误差"),
+                    ("cn0", "U1", 2, "dBHz", "载噪比"),
+                    ("trkind", "U1", 2, "-", "信号质量"),
+                    ("corflagx", "U1", 2, "-", "信号修正标志"),
+                    ("solflagx", "U1", 2, "-", "信号解算标志"),
+                    ("chn", "U1", 2, "-", "跟踪通道号"),
+                    ("eleDeg", "U1", 2, "度", "卫星仰角"),
+                    ("aziDeg", "U2", 4, "度", "卫星方位角"),
+                    ("ionoDelay", "I2", 4, "dm", "电离层延迟修正量")
+                ]
+                
+                for name, data_type, max_length, unit, description in signal_field_definitions:
+                    # 获取输入框的值
+                    if name in signal_inputs:
+                        field_text = signal_inputs[name].text().strip()
+                    else:
+                        field_text = ""
+                    
+                    # 根据数据类型解析字段
+                    if data_type == "U1":  # 1字节无符号整数
+                        field_bytes = self.parse_unsigned_int_field(field_text, 1, silent)
+                    elif data_type == "U2":  # 2字节无符号整数
+                        field_bytes = self.parse_unsigned_int_field(field_text, 2, silent)
+                    elif data_type == "I2":  # 2字节有符号整数
+                        field_bytes = self.parse_signed_int_field(field_text, 2, silent)
+                    else:
+                        # 未知数据类型，使用默认值
+                        field_bytes = [0x00] * self.get_data_type_size(data_type)
+                    
+                    if field_bytes is None:
+                        return None
+                    
+                    payload_data.extend(field_bytes)
+            
+            return payload_data
+            
+        except Exception as e:
+            if not silent:
+                QMessageBox.warning(self, "警告", f"解析NAV2-SIG有效载荷失败: {str(e)}")
+            return None
+    
+    def update_satellite_fields(self, satellite_count):
+        """根据卫星数量动态更新卫星字段"""
+        try:
+            print(f"开始更新卫星字段，目标数量: {satellite_count}")
+            
+            # 清空现有的卫星输入框
+            current_count = self.satellite_grid.count()
+            print(f"当前卫星网格中的部件数量: {current_count}")
+            
+            for i in reversed(range(self.satellite_grid.count())):
+                widget = self.satellite_grid.itemAt(i).widget()
+                if widget:
+                    print(f"删除部件: {widget}")
+                    widget.deleteLater()
+            
+            self.nav2_sat_satellite_inputs.clear()
+            print("已清空现有卫星输入框")
+            
+            if satellite_count <= 0:
+                self.satellite_fields_title.setText("卫星信息 (0颗卫星)")
+                print("卫星数量为0，更新完成")
+                return
+            
+            # 更新标题
+            self.satellite_fields_title.setText(f"卫星信息 ({satellite_count}颗卫星)")
+            
+            # 定义卫星字段信息
+            satellite_field_definitions = [
+                # 名称, 数据类型, 最大长度, 单位, 描述
+                ("chn", "U1", 2, "-", "跟踪通道号"),
+                ("svid", "U1", 2, "-", "卫星编号"),
+                ("gnssid", "U1", 2, "-", "卫星系统标识符"),
+                ("flagx", "U1", 2, "-", "卫星状态标志"),
+                ("quality", "U1", 2, "-", "信号质量"),
+                ("cn0", "U1", 2, "dBHz", "载噪比"),
+                ("sigid", "U1", 2, "-", "卫星信号标识符"),
+                ("elevation", "U1", 2, "度", "卫星仰角"),
+                ("azimuth", "U2", 4, "度", "卫星方位角"),
+                ("prresi", "I2", 4, "dm", "伪距误差")
+            ]
+            
+            # 为每颗卫星创建输入框
+            for sat_index in range(satellite_count):
+                # 创建卫星分组标题
+                sat_title = QLabel(f"卫星 {sat_index + 1}")
+                sat_title.setStyleSheet("""
+                    QLabel {
+                        font-size: 12px;
+                        font-weight: bold;
+                        color: #2e7d32;
+                        background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                            stop:0 #e8f5e5, stop:1 #c8e6c9);
+                        border: 2px solid #81c784;
+                        border-radius: 8px;
+                        padding: 8px 16px;
+                        margin: 4px 2px;
+                        text-align: center;
+                    }
+                """)
+                sat_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.satellite_grid.addWidget(sat_title, sat_index * 6, 0, 1, 4)
+                
+                # 存储这颗卫星的输入框
+                satellite_inputs = {}
+                
+                # 创建这颗卫星的所有字段
+                for field_index, (name, data_type, max_length, unit, description) in enumerate(satellite_field_definitions):
+                    row = sat_index * 6 + 1 + (field_index // 2)
+                    col = (field_index % 2) * 2
+                    
+                    # 字段标签
+                    label_text = f"{name} ({description})"
+                    label = QLabel(label_text)
+                    label.setStyleSheet("""
+                        QLabel {
+                            font-size: 10px;
+                            color: #2e7d32;
+                            background-color: #f1f8e9;
+                            border: 1px solid #c8e6c9;
+                            border-radius: 4px;
+                            padding: 4px 8px;
+                            margin: 1px;
+                            font-weight: 500;
+                        }
+                    """)
+                    label.setWordWrap(True)
+                    label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                    self.satellite_grid.addWidget(label, row, col)
+                    
+                    # 输入框
+                    input_field = QLineEdit()
+                    input_field.setPlaceholderText(f"{max_length}位16进制")
+                    input_field.setMaxLength(max_length)
+                    input_field.setStyleSheet("""
+                        QLineEdit {
+                            border: 2px solid #81c784;
+                            border-radius: 6px;
+                            padding: 6px 8px;
+                            background-color: white;
+                            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                            font-size: 10px;
+                            color: #333333;
+                            min-width: 90px;
+                            min-height: 20px;
+                        }
+                        QLineEdit:focus {
+                            border: 2px solid #2196F3;
+                            background-color: #fafafa;
+                        }
+                        QLineEdit:hover {
+                            border: 2px solid #66bb6a;
+                        }
+                    """)
+                    
+                    # 连接信号
+                    input_field.textChanged.connect(self.on_nav2_sat_changed)
+                    input_field.textChanged.connect(self.validate_hex_input)
+                    input_field.editingFinished.connect(self.auto_pad_hex_input)
+                    
+                    self.satellite_grid.addWidget(input_field, row, col + 1)
+                    
+                    # 存储输入框引用
+                    satellite_inputs[name] = input_field
+                
+                self.nav2_sat_satellite_inputs.append(satellite_inputs)
+                
+        except Exception as e:
+            print(f"更新卫星字段失败: {str(e)}")
+    
+    def update_signal_fields(self, signal_count):
+        """根据信号数量动态更新信号字段"""
+        try:
+            print(f"开始更新信号字段，目标数量: {signal_count}")
+            
+            # 清空现有的信号输入框
+            current_count = self.signal_grid.count()
+            print(f"当前信号网格中的部件数量: {current_count}")
+            
+            for i in reversed(range(self.signal_grid.count())):
+                widget = self.signal_grid.itemAt(i).widget()
+                if widget:
+                    print(f"删除部件: {widget}")
+                    widget.deleteLater()
+            
+            self.nav2_sig_signal_inputs.clear()
+            print("已清空现有信号输入框")
+            
+            if signal_count <= 0:
+                self.signal_fields_title.setText("信号信息 (0个信号)")
+                print("信号数量为0，更新完成")
+                return
+            
+            # 更新标题
+            self.signal_fields_title.setText(f"信号信息 ({signal_count}个信号)")
+            
+            # 定义信号字段信息
+            signal_field_definitions = [
+                # 名称, 数据类型, 最大长度, 单位, 描述
+                ("gnssid", "U1", 2, "-", "卫星系统标识符"),
+                ("svid", "U1", 2, "-", "卫星编号"),
+                ("sigid", "U1", 2, "-", "卫星信号标识符"),
+                ("freqid", "U1", 2, "-", "卫星信号标识符"),
+                ("prResi", "I2", 4, "dm", "伪距误差"),
+                ("cn0", "U1", 2, "dBHz", "载噪比"),
+                ("trkind", "U1", 2, "-", "信号质量"),
+                ("corflagx", "U1", 2, "-", "信号修正标志"),
+                ("solflagx", "U1", 2, "-", "信号解算标志"),
+                ("chn", "U1", 2, "-", "跟踪通道号"),
+                ("eleDeg", "U1", 2, "度", "卫星仰角"),
+                ("aziDeg", "U2", 4, "度", "卫星方位角"),
+                ("ionoDelay", "I2", 4, "dm", "电离层延迟修正量")
+            ]
+            
+            # 为每个信号创建输入框
+            for sig_index in range(signal_count):
+                # 创建信号分组标题
+                sig_title = QLabel(f"信号 {sig_index + 1}")
+                sig_title.setStyleSheet("""
+                    QLabel {
+                        font-size: 12px;
+                        font-weight: bold;
+                        color: #e65100;
+                        background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                            stop:0 #ffecb3, stop:1 #ffcc02);
+                        border: 2px solid #ff9800;
+                        border-radius: 8px;
+                        padding: 8px 16px;
+                        margin: 4px 2px;
+                        text-align: center;
+                    }
+                """)
+                sig_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.signal_grid.addWidget(sig_title, sig_index * 7, 0, 1, 4)
+                
+                # 存储这个信号的输入框
+                signal_inputs = {}
+                
+                # 创建这个信号的所有字段
+                for field_index, (name, data_type, max_length, unit, description) in enumerate(signal_field_definitions):
+                    row = sig_index * 7 + 1 + (field_index // 2)
+                    col = (field_index % 2) * 2
+                    
+                    # 字段标签
+                    label_text = f"{name} ({description})"
+                    label = QLabel(label_text)
+                    label.setStyleSheet("""
+                        QLabel {
+                            font-size: 10px;
+                            color: #e65100;
+                            background-color: #ffecb3;
+                            border: 1px solid #ff9800;
+                            border-radius: 4px;
+                            padding: 4px 8px;
+                            margin: 1px;
+                            font-weight: 500;
+                        }
+                    """)
+                    label.setWordWrap(True)
+                    label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                    self.signal_grid.addWidget(label, row, col)
+                    
+                    # 输入框
+                    input_field = QLineEdit()
+                    input_field.setPlaceholderText(f"{max_length}位16进制")
+                    input_field.setMaxLength(max_length)
+                    input_field.setStyleSheet("""
+                        QLineEdit {
+                            border: 2px solid #ff9800;
+                            border-radius: 6px;
+                            padding: 6px 8px;
+                            background-color: white;
+                            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                            font-size: 10px;
+                            color: #333333;
+                            min-width: 90px;
+                            min-height: 20px;
+                        }
+                        QLineEdit:focus {
+                            border: 2px solid #2196F3;
+                            background-color: #fafafa;
+                        }
+                        QLineEdit:hover {
+                            border: 2px solid #ffb74d;
+                        }
+                    """)
+                    
+                    # 连接信号
+                    input_field.textChanged.connect(self.on_nav2_sig_changed)
+                    input_field.textChanged.connect(self.validate_hex_input)
+                    input_field.editingFinished.connect(self.auto_pad_hex_input)
+                    
+                    self.signal_grid.addWidget(input_field, row, col + 1)
+                    
+                    # 存储输入框引用
+                    signal_inputs[name] = input_field
+                
+                self.nav2_sig_signal_inputs.append(signal_inputs)
+                
+        except Exception as e:
+            print(f"更新信号字段失败: {str(e)}")
+    
+    def on_satellite_count_changed(self):
+        """当卫星数量改变时，动态更新卫星字段"""
+        try:
+            # 获取numViewTot的值
+            num_view_tot_text = self.nav2_sat_fixed_inputs.get("numViewTot", "").text().strip()
+            print(f"numViewTot输入变化: '{num_view_tot_text}', 长度: {len(num_view_tot_text)}")
+            
+            if not num_view_tot_text:
+                print("清空卫星字段")
+                self.update_satellite_fields(0)
+                return
+            
+            # 检查是否输入了2位16进制数
+            if len(num_view_tot_text) == 2:
+                print(f"检测到2位输入，准备解析卫星数量")
+                # 解析卫星数量
+                try:
+                    satellite_count = int(num_view_tot_text, 16)
+                    if satellite_count < 0:
+                        satellite_count = 0
+                    elif satellite_count > 32:  # 限制最大卫星数量
+                        satellite_count = 32
+                    print(f"解析成功，卫星数量: {satellite_count}")
+                except ValueError:
+                    satellite_count = 0
+                    print(f"解析失败，使用默认值: {satellite_count}")
+                
+                # 立即更新卫星字段
+                print(f"开始更新卫星字段，数量: {satellite_count}")
+                self.update_satellite_fields(satellite_count)
+                self.update_packet_preview()
+                print("卫星字段更新完成")
+            else:
+                print(f"输入长度不足2位，当前长度: {len(num_view_tot_text)}")
+            
+        except Exception as e:
+            print(f"处理卫星数量变化失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
+    
+    def on_satellite_count_finished(self):
+        """当卫星数量输入完成时，最终确认并更新"""
+        try:
+            # 获取numViewTot的值
+            num_view_tot_text = self.nav2_sat_fixed_inputs.get("numViewTot", "").text().strip()
+            if not num_view_tot_text:
+                self.update_satellite_fields(0)
+                return
+            
+            # 解析卫星数量
+            try:
+                satellite_count = int(num_view_tot_text, 16)
+                if satellite_count < 0:
+                    satellite_count = 0
+                elif satellite_count > 32:  # 限制最大卫星数量
+                    satellite_count = 32
+            except ValueError:
+                satellite_count = 0
+            
+            # 最终更新卫星字段
+            self.update_satellite_fields(satellite_count)
+            self.update_packet_preview()
+            
+        except Exception as e:
+            print(f"处理卫星数量输入完成失败: {str(e)}")
+    
+    def on_signal_count_changed(self):
+        """当信号数量改变时，动态更新信号字段"""
+        try:
+            # 获取numTrkTot的值
+            num_trk_tot_text = self.nav2_sig_fixed_inputs.get("numTrkTot", "").text().strip()
+            print(f"numTrkTot输入变化: '{num_trk_tot_text}', 长度: {len(num_trk_tot_text)}")
+            
+            if not num_trk_tot_text:
+                print("清空信号字段")
+                self.update_signal_fields(0)
+                return
+            
+            # 检查是否输入了2位16进制数
+            if len(num_trk_tot_text) == 2:
+                print(f"检测到2位输入，准备解析信号数量")
+                # 解析信号数量
+                try:
+                    signal_count = int(num_trk_tot_text, 16)
+                    if signal_count < 0:
+                        signal_count = 0
+                    elif signal_count > 32:  # 限制最大信号数量
+                        signal_count = 32
+                    print(f"解析成功，信号数量: {signal_count}")
+                except ValueError:
+                    signal_count = 0
+                    print(f"解析失败，使用默认值: {signal_count}")
+                
+                # 立即更新信号字段
+                print(f"开始更新信号字段，数量: {signal_count}")
+                self.update_signal_fields(signal_count)
+                self.update_packet_preview()
+                print("信号字段更新完成")
+            else:
+                print(f"输入长度不足2位，当前长度: {len(num_trk_tot_text)}")
+            
+        except Exception as e:
+            print(f"处理信号数量变化失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
+    
+    def on_signal_count_finished(self):
+        """当信号数量输入完成时，最终确认并更新"""
+        try:
+            # 获取numTrkTot的值
+            num_trk_tot_text = self.nav2_sig_fixed_inputs.get("numTrkTot", "").text().strip()
+            if not num_trk_tot_text:
+                self.update_signal_fields(0)
+                return
+            
+            # 解析信号数量
+            try:
+                signal_count = int(num_trk_tot_text, 16)
+                if signal_count < 0:
+                    signal_count = 0
+                elif signal_count > 32:  # 限制最大信号数量
+                    signal_count = 32
+            except ValueError:
+                signal_count = 0
+            
+            # 最终更新信号字段
+            self.update_signal_fields(signal_count)
+            self.update_packet_preview()
+            
+        except Exception as e:
+            print(f"处理信号数量输入完成失败: {str(e)}")
+    
+    def adjust_window_size(self):
+        """调整窗口大小，确保所有组件都能正确显示"""
+        try:
+            # 获取当前窗口大小
+            current_size = self.size()
+            
+            # 根据当前显示的消息类型调整窗口大小
+            if self.nav2_sat_widget.isVisible():
+                # NAV2-SAT需要更多空间显示卫星信息
+                target_height = 800
+            elif self.nav2_sig_widget.isVisible():
+                # NAV2-SIG需要更多空间显示信号信息
+                target_height = 800
+            elif self.nav2_dop_widget.isVisible():
+                # NAV2-DOP使用最小窗口大小
+                target_height = 600
+            elif (self.nav2_sol_widget.isVisible() or 
+                  self.nav2_pvh_widget.isVisible() or 
+                  self.nav2_timeutc_widget.isVisible() or 
+                  self.nav2_clk_widget.isVisible() or 
+                  self.nav2_rvt_widget.isVisible() or 
+                  self.nav2_rtc_widget.isVisible()):
+                # 其他固定长度的NAV2消息类型使用中等窗口大小
+                target_height = 700
+            else:
+                # 默认大小
+                target_height = 600
+            
+            # 如果当前高度与目标高度不同，则调整
+            if current_size.height() != target_height:
+                self.resize(current_size.width(), target_height)
+                # 强制更新布局
+                self.updateGeometry()
+                self.adjustSize()
+                print(f"窗口大小已调整: {current_size.width()}x{current_size.height()} -> {current_size.width()}x{target_height}")
+                
+        except Exception as e:
+            print(f"调整窗口大小失败: {str(e)}")
