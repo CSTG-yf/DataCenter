@@ -1554,7 +1554,7 @@ class SendDataWindow(QMainWindow):
                     background-color: white;
                     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
                     font-size: 10px;
-                    color: #333333;
+                color: #333333;
                     min-width: 110px;
                     min-height: 20px;
                 }
@@ -1657,7 +1657,105 @@ class SendDataWindow(QMainWindow):
         # 存储信号输入框的字典列表
         self.nav2_sig_signal_inputs = []
         
-        # 初始时隐藏九个专用输入框
+        # TIM2-TPX 授时脉冲信息组件
+        self.tim2_tpx_widget = QFrame()
+        self.tim2_tpx_widget.setStyleSheet("""
+            QFrame {
+                border: 2px solid #9c27b0;
+                border-radius: 8px;
+                background-color: #f3e5f5;
+                margin: 4px;
+                padding: 8px;
+            }
+        """)
+        tim2_tpx_layout = QVBoxLayout(self.tim2_tpx_widget)
+        tim2_tpx_layout.setSpacing(8)
+        tim2_tpx_layout.setContentsMargins(8, 8, 8, 8)
+        
+        # TIM2-TPX标题
+        tim2_tpx_title = QLabel("TIM2-TPX 授时脉冲信息")
+        tim2_tpx_title.setStyleSheet("""
+            QLabel {
+                font-size: 14px;
+                font-weight: bold;
+                color: #6a1b9a;
+                background-color: #e1bee7;
+                border: 1px solid #9c27b0;
+                border-radius: 6px;
+                padding: 8px 16px;
+                margin: 2px;
+            }
+        """)
+        tim2_tpx_layout.addWidget(tim2_tpx_title)
+        
+        # TIM2-TPX字段网格布局
+        tim2_tpx_grid = QGridLayout()
+        tim2_tpx_grid.setSpacing(8)
+        tim2_tpx_grid.setContentsMargins(8, 8, 8, 8)
+        
+        # 定义TIM2-TPX字段
+        tim2_tpx_fields = [
+            ("tow", "U4", "GNSS系统时间,周内时的整数毫秒", "ms", "输入8位16进制数,留空默认为0"),
+            ("towSubms", "I4", "当前PPS脉冲对应的GNSS系统时间小数毫秒", "ms", "输入8位16进制数,留空默认为0"),
+            ("wn", "U2", "GNSS系统时间,周数", "-", "输入4位16进制数,留空默认为0"),
+            ("ppsflagx", "U1", "PPS脉冲可靠性指示", "-", "输入2位16进制数,留空默认为0"),
+            ("tbase", "U1", "PPS脉冲参考基准 0=GNSS系统 1=UTC", "-", "输入2位16进制数,留空默认为0"),
+            ("tsrc", "U1", "接收机授时的时间源", "-", "输入2位16进制数,留空默认为0"),
+            ("res1", "U1", "保留", "-", "输入2位16进制数,留空默认为0"),
+            ("res2", "U2", "保留", "-", "输入4位16进制数,留空默认为0"),
+            ("res3", "U2", "保留", "-", "输入4位16进制数,留空默认为0"),
+            ("leapSec", "I1", "当前系统的闰秒值", "s", "输入2位16进制数,留空默认为0"),
+            ("quanErr", "I1", "当前PPS脉冲的硬件量化误差", "ns", "输入2位16进制数,留空默认为0"),
+            ("tacc", "I2", "当前时间的误差估计值", "ns", "输入4位16进制数,留空默认为0"),
+            ("dt2Utc", "I2", "卫星时间与UTC时间的偏差", "ns", "输入4位16进制数,留空默认为0")
+        ]
+        
+        # 创建TIM2-TPX输入框
+        self.tim2_tpx_inputs = {}
+        for i, (field_name, data_type, description, unit, hint) in enumerate(tim2_tpx_fields):
+            row = i // 2
+            col = i % 2 * 2
+            
+            # 字段标签
+            field_label = QLabel(f"{field_name} ({data_type}):")
+            field_label.setStyleSheet("""
+                QLabel {
+                    font-size: 11px;
+                    color: #6a1b9a;
+                background-color: transparent;
+                border: none;
+            }
+        """)
+            tim2_tpx_grid.addWidget(field_label, row, col)
+            
+            # 输入框
+            input_field = QLineEdit()
+            input_field.setPlaceholderText(hint)
+            input_field.setStyleSheet("""
+                QLineEdit {
+                    border: 1px solid #9c27b0;
+                border-radius: 4px;
+                    padding: 6px;
+                    background-color: white;
+                font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                    font-size: 11px;
+                    min-width: 120px;
+                }
+                QLineEdit:focus {
+                    border: 2px solid #6a1b9a;
+                }
+            """)
+            tim2_tpx_grid.addWidget(input_field, row, col + 1)
+            
+            # 连接信号
+            input_field.textChanged.connect(self.on_tim2_tpx_changed)
+            
+            # 存储输入框引用
+            self.tim2_tpx_inputs[field_name] = input_field
+        
+        tim2_tpx_layout.addLayout(tim2_tpx_grid)
+        
+        # 初始时隐藏十个专用输入框
         self.nav2_dop_widget.hide()
         self.nav2_sol_widget.hide()
         self.nav2_pvh_widget.hide()
@@ -1667,8 +1765,9 @@ class SendDataWindow(QMainWindow):
         self.nav2_rtc_widget.hide()
         self.nav2_sat_widget.hide()
         self.nav2_sig_widget.hide()
+        self.tim2_tpx_widget.hide()
         
-        # 将两个输入方式添加到有效载荷布局中
+        # 将专用输入框添加到有效载荷布局中
         payload_layout.addWidget(self.payload_input)
         payload_layout.addWidget(self.nav2_dop_widget)
         payload_layout.addWidget(self.nav2_sol_widget)
@@ -1679,6 +1778,7 @@ class SendDataWindow(QMainWindow):
         payload_layout.addWidget(self.nav2_rtc_widget)
         payload_layout.addWidget(self.nav2_sat_widget)
         payload_layout.addWidget(self.nav2_sig_widget)
+        payload_layout.addWidget(self.tim2_tpx_widget)
         
         fields_grid.addWidget(payload_widget, 4, 1)
         
@@ -2011,6 +2111,10 @@ class SendDataWindow(QMainWindow):
                 input_field.clear()
         self.nav2_sig_signal_inputs.clear()
         self.update_signal_fields(0)
+        
+        # 清空TIM2-TPX输入框
+        for input_field in self.tim2_tpx_inputs.values():
+            input_field.clear()
         
         # 重新设置消息ID选项
         self.on_class_changed()
@@ -2477,8 +2581,20 @@ class SendDataWindow(QMainWindow):
                             if payload_data is not None:
                                 return len(payload_data)
                     return 0
+            elif class_value == 0x12:  # TIM2消息类
+                if id_value == 0x00:  # TIM2-TPX
+                    return 24  # 固定长度：24字节 (根据技术规范)
+                else:
+                    # 其他TIM2消息ID，使用默认payload输入框
+                    if hasattr(self, 'payload_input'):
+                        payload_text = self.payload_input.toPlainText().strip()
+                        if payload_text:
+                            payload_data = self.parse_hex_payload(payload_text, silent)
+                            if payload_data is not None:
+                                return len(payload_data)
+                    return 0
             else:
-                # 非NAV2消息类，使用默认payload输入框
+                # 非NAV2/TIM2消息类，使用默认payload输入框
                 if hasattr(self, 'payload_input'):
                     payload_text = self.payload_input.toPlainText().strip()
                     if payload_text:
@@ -2683,6 +2799,11 @@ class SendDataWindow(QMainWindow):
                 payload_data = self.parse_nav2_sig_payload(silent)
                 if payload_data is None:
                     return None
+            elif self.tim2_tpx_widget.isVisible():
+                # TIM2-TPX消息：根据字段类型解析
+                payload_data = self.parse_tim2_tpx_payload(silent)
+                if payload_data is None:
+                    return None
             else:
                 # 使用默认的payload输入框
                 payload_text = self.payload_input.toPlainText().strip()
@@ -2759,8 +2880,17 @@ class SendDataWindow(QMainWindow):
             ])
             self.id_combo.setCurrentText("0x00 - 授时脉冲信息 (Timing pulse information)")
             
-            # 隐藏NAV2-DOP专用输入框
+            # 隐藏所有专用输入框，显示默认payload输入框
             self.nav2_dop_widget.hide()
+            self.nav2_sol_widget.hide()
+            self.nav2_pvh_widget.hide()
+            self.nav2_timeutc_widget.hide()
+            self.nav2_clk_widget.hide()
+            self.nav2_rvt_widget.hide()
+            self.nav2_rtc_widget.hide()
+            self.nav2_sat_widget.hide()
+            self.nav2_sig_widget.hide()
+            self.tim2_tpx_widget.hide()
             self.payload_input.show()
             
         elif "RXM2" in selected_class:
@@ -3044,9 +3174,36 @@ class SendDataWindow(QMainWindow):
                     self.nav2_rtc_widget.hide()
                     self.nav2_sat_widget.hide()
                     self.nav2_sig_widget.hide()
+                    self.tim2_tpx_widget.hide()
+                    self.payload_input.show()
+            elif class_value == 0x12:  # TIM2消息类
+                if id_value == 0x00:  # TIM2-TPX
+                    self.nav2_dop_widget.hide()
+                    self.nav2_sol_widget.hide()
+                    self.nav2_pvh_widget.hide()
+                    self.nav2_timeutc_widget.hide()
+                    self.nav2_clk_widget.hide()
+                    self.nav2_rvt_widget.hide()
+                    self.nav2_rtc_widget.hide()
+                    self.nav2_sat_widget.hide()
+                    self.nav2_sig_widget.hide()
+                    self.tim2_tpx_widget.show()
+                    self.payload_input.hide()
+                else:
+                    # 其他TIM2消息ID
+                    self.nav2_dop_widget.hide()
+                    self.nav2_sol_widget.hide()
+                    self.nav2_pvh_widget.hide()
+                    self.nav2_timeutc_widget.hide()
+                    self.nav2_clk_widget.hide()
+                    self.nav2_rvt_widget.hide()
+                    self.nav2_rtc_widget.hide()
+                    self.nav2_sat_widget.hide()
+                    self.nav2_sig_widget.hide()
+                    self.tim2_tpx_widget.hide()
                     self.payload_input.show()
             else:
-                # 非NAV2消息类
+                # 非NAV2/TIM2消息类
                 self.nav2_dop_widget.hide()
                 self.nav2_sol_widget.hide()
                 self.nav2_pvh_widget.hide()
@@ -3056,6 +3213,7 @@ class SendDataWindow(QMainWindow):
                 self.nav2_rtc_widget.hide()
                 self.nav2_sat_widget.hide()
                 self.nav2_sig_widget.hide()
+                self.tim2_tpx_widget.hide()
                 self.payload_input.show()
                 
             # 调整窗口大小，确保所有组件都能正确显示
@@ -4242,6 +4400,72 @@ class SendDataWindow(QMainWindow):
             
         except Exception as e:
             print(f"处理信号数量输入完成失败: {str(e)}")
+    
+    def parse_tim2_tpx_payload(self, silent=False):
+        """解析TIM2-TPX消息的有效载荷"""
+        try:
+            payload_data = []
+            
+            # 定义字段类型和长度
+            field_specs = [
+                ("tow", "U4", 4),        # 无符号4字节整数
+                ("towSubms", "I4", 4),   # 有符号4字节整数
+                ("wn", "U2", 2),         # 无符号2字节整数
+                ("ppsflagx", "U1", 1),   # 无符号1字节整数
+                ("tbase", "U1", 1),      # 无符号1字节整数
+                ("tsrc", "U1", 1),       # 无符号1字节整数
+                ("res1", "U1", 1),       # 无符号1字节整数
+                ("res2", "U2", 2),       # 无符号2字节整数
+                ("res3", "U2", 2),       # 无符号2字节整数
+                ("leapSec", "I1", 1),    # 有符号1字节整数
+                ("quanErr", "I1", 1),    # 有符号1字节整数
+                ("tacc", "I2", 2),       # 有符号2字节整数
+                ("dt2Utc", "I2", 2)      # 有符号2字节整数
+            ]
+            
+            for field_name, data_type, field_length in field_specs:
+                input_field = self.tim2_tpx_inputs.get(field_name)
+                if not input_field:
+                    if not silent:
+                        print(f"找不到字段: {field_name}")
+                    return None
+                
+                field_text = input_field.text().strip()
+                if not field_text:
+                    # 空字段填充为0
+                    field_bytes = [0] * field_length
+                else:
+                    try:
+                        # 解析16进制值
+                        if data_type.startswith('I'):  # 有符号整数
+                            field_value = int(field_text, 16)
+                            # 处理有符号整数的负值
+                            if field_value < 0:
+                                field_value = (1 << (field_length * 8)) + field_value
+                        else:  # 无符号整数
+                            field_value = int(field_text, 16)
+                        
+                        # 转换为字节数组（小端序）
+                        field_bytes = []
+                        for i in range(field_length):
+                            field_bytes.append((field_value >> (i * 8)) & 0xFF)
+                    except ValueError:
+                        if not silent:
+                            print(f"字段 {field_name} 的16进制值解析失败: {field_text}")
+                        return None
+                
+                payload_data.extend(field_bytes)
+            
+            return payload_data
+            
+        except Exception as e:
+            if not silent:
+                print(f"解析TIM2-TPX载荷失败: {str(e)}")
+            return None
+    
+    def on_tim2_tpx_changed(self):
+        """当TIM2-TPX消息的有效载荷输入框内容改变时，更新预览"""
+        self.update_packet_preview()
     
     def adjust_window_size(self):
         """调整窗口大小，确保所有组件都能正确显示"""
